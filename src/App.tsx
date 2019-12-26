@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import styled, { keyframes } from "styled-components";
 import { range } from "lodash";
-import { findRandomColor, findUniqueIndex } from "./utils";
+import { findRandomColor, findUniqueIndex, boardOnNewMove } from "./utils";
 
 export const ballColors = {
   red: "#9e0808",
@@ -11,19 +11,19 @@ export const ballColors = {
   violet: "#8930e3"
 } as const;
 
-type BallColors = typeof ballColors;
+export type BallColors = typeof ballColors;
 
 type CellType = {
   color: keyof BallColors;
 };
 
-type BallKinds =
+export type BallKinds =
   | (({ kind: "regular" } | { kind: "small" } | { kind: "jumpy" }) & CellType)
   | { kind: "empty" };
 
 const vibrate = keyframes`
   0% {transform: scale(1);}
-  50%  {transform: scale(0.95);}
+  50%  {transform: scale(0.9);}
   100% {transform: scale(1);}
 `;
 
@@ -43,16 +43,21 @@ const JumpyBall = styled(RegularBall)`
   animation: ${vibrate} 1s infinite;
 `;
 
-const Ball: React.FC<{ cell: BallKinds; onClick: () => void }> = ({ cell }) => {
+const EmptyCell = styled.div`
+  width: 100%;
+  height: 100%;
+`;
+
+const Ball: React.FC<{ cell: BallKinds; onClick: () => void }> = ({ cell, onClick }) => {
   switch (cell.kind) {
     case "jumpy":
-      return <JumpyBall color={cell.color} />;
+      return <JumpyBall onClick={onClick} color={cell.color} />;
     case "regular":
-      return <RegularBall color={cell.color} />;
+      return <RegularBall onClick={onClick} color={cell.color} />;
     case "small":
-      return <SmallBall color={cell.color} />;
+      return <SmallBall onClick={onClick} color={cell.color} />;
     case "empty":
-      return null;
+      return <EmptyCell onClick={onClick} />;
   }
 };
 
@@ -119,34 +124,8 @@ const App: React.FC = () => {
     setInitBoard(size * size, randomBallsLength, Object.keys(ballColors))
   );
   const handleMouseClick = (id: number) => () => {
-    const jumpyCellId = board.findIndex(x => x.kind === "jumpy");
-    const a: BallKinds[] = board.map((x, index, array) => {
-      if (index === id && x.kind === "regular") {
-        return { color: x.color, kind: "jumpy" };
-      }
-      if (index === id && x.kind === "jumpy") {
-        return { color: x.color, kind: "regular" };
-      }
-      if (array[id].kind === "regular" && x.kind === "jumpy") {
-        return { color: x.color, kind: "regular" };
-      }
-      if (
-        index === id &&
-        (x.kind === "empty" || x.kind === "small") &&
-        jumpyCellId !== -1
-      ) {
-        return array[jumpyCellId];
-      }
-      if (
-        jumpyCellId === index &&
-        x.kind === "jumpy" &&
-        (array[id].kind === "empty" || array[id].kind === "small")
-      ) {
-        return { kind: "empty" };
-      }
-      return x;
-    });
-    setBoard(a);
+    const newBoard = boardOnNewMove(board, id)
+    setBoard(newBoard);
   };
 
   return (
