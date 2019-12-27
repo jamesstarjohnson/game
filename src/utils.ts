@@ -131,6 +131,7 @@ export function boardOnNewMove(board: BallKinds[], id: number) {
     if (
       index === id &&
       (x.kind === "empty" || x.kind === "small") &&
+      !!firstSpot &&
       firstSpot.kind === "jumpy" &&
       canYouMoveHere()
     ) {

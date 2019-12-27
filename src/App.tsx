@@ -57,7 +57,7 @@ const Ball: React.FC<{ cell: BallKinds; onClick: () => void }> = ({
     case "regular":
       return <RegularBall onClick={onClick} color={cell.color} />;
     case "small":
-      return <SmallBall onClick={onClick} color={cell.color} />;
+      return <SmallBall color={cell.color} />;
     case "empty":
       return <EmptyCell onClick={onClick} />;
   }
@@ -71,10 +71,11 @@ const Container = styled.div`
   justify-content: center;
 `;
 
-const Cell = styled.div`
-  width: 9vmin;
-  height: 9vmin;
-  border: 1px solid silver;
+const Cell = styled.div<{ firstInARow: boolean; bottomRow: boolean }>`
+  width: calc(10vmin - 2px);
+  height: calc(10vmin - 2px);
+  border-bottom: ${props => (!props.bottomRow ? "1px solid silver" : 0)};
+  border-left: ${props => (!props.firstInARow ? "1px solid silver" : 0)};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -107,7 +108,11 @@ const App: React.FC = () => {
     <Container>
       <Board>
         {board.map((cell, index) => (
-          <Cell key={index}>
+          <Cell
+            firstInARow={index % size === 0}
+            bottomRow={index >= size * size - size}
+            key={index}
+          >
             {<Ball onClick={handleMouseClick(index)} cell={cell} />}
           </Cell>
         ))}
