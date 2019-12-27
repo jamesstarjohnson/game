@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import styled, { keyframes } from "styled-components";
-import { range } from "lodash";
-import { findRandomColor, findUniqueIndex, boardOnNewMove } from "./utils";
+import { boardOnNewMove, setInitialBoard } from "./utils";
 
 export const ballColors = {
   red: "#9e0808",
@@ -35,8 +34,8 @@ const RegularBall = styled.div<CellType>`
 `;
 
 const SmallBall = styled(RegularBall)`
-  width: 10%;
-  height: 10%;
+  width: 20%;
+  height: 20%;
 `;
 
 const JumpyBall = styled(RegularBall)`
@@ -48,7 +47,10 @@ const EmptyCell = styled.div`
   height: 100%;
 `;
 
-const Ball: React.FC<{ cell: BallKinds; onClick: () => void }> = ({ cell, onClick }) => {
+const Ball: React.FC<{ cell: BallKinds; onClick: () => void }> = ({
+  cell,
+  onClick
+}) => {
   switch (cell.kind) {
     case "jumpy":
       return <JumpyBall onClick={onClick} color={cell.color} />;
@@ -73,6 +75,9 @@ const Cell = styled.div`
   width: 9vmin;
   height: 9vmin;
   border: 1px solid silver;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const Board = styled.div`
@@ -85,46 +90,16 @@ const Board = styled.div`
   justify-content: space-evenly;
 `;
 
-export const setInitBoard = (
-  ballsNumber: number,
-  randomBallsLength: number,
-  colors: string[]
-) => {
-  const initialBoard = range(0, ballsNumber).map<BallKinds>(_ => ({
-    kind: "empty"
-  }));
-
-  const randomBoardIndexes = range(0, randomBallsLength)
-    .reduce((acc, _) => {
-      const value = findUniqueIndex(acc, ballsNumber - 1);
-      acc.push(value);
-      return acc;
-    }, [] as number[])
-    .map(
-      index =>
-        ({ index, color: findRandomColor(colors) } as {
-          index: number;
-          color: keyof BallColors;
-        })
-    )
-    .reduce((acc, next) => {
-      acc[next.index] = { color: next.color, kind: "regular" };
-      return acc;
-    }, initialBoard);
-  return randomBoardIndexes;
-};
-
 const App: React.FC = () => {
   const size = 10;
   const randomBallsLength = 3;
-  console.log(
-    setInitBoard(10, 3, ["red", "orange", "blue", "green", "violet"])
-  );
+  // console.log(setBoard(10, 3, ["red", "orange", "blue", "green", "violet"]));
+  // const updateBallsBoard = updateBoard(randomBallsLength);
   const [board, setBoard] = useState(
-    setInitBoard(size * size, randomBallsLength, Object.keys(ballColors))
+    setInitialBoard(size * size, randomBallsLength)
   );
   const handleMouseClick = (id: number) => () => {
-    const newBoard = boardOnNewMove(board, id)
+    const newBoard = boardOnNewMove(board, id);
     setBoard(newBoard);
   };
 
