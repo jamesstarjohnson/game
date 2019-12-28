@@ -89,6 +89,27 @@ export const setInitialBoard = (
     updateBoardWithBalls(randomBallsLength, Object.keys(ballColors), "small")
   )(size);
 
+const turnSmallBallsIntoRegularOnes = (board: BallKinds[]): BallKinds[] =>
+  board.map(x => (x.kind === "small" ? { ...x, kind: "regular" } : x));
+
+export const updateBoardOnMove = (
+  board: BallKinds[],
+  id: number,
+  randomBallsLength: number
+) => {
+  const [boardAfterClick, IsSecondClick] = boardOnNewMove(id, board);
+  return IsSecondClick
+    ? flow(
+        turnSmallBallsIntoRegularOnes,
+        updateBoardWithBalls(
+          randomBallsLength,
+          Object.keys(ballColors),
+          "small"
+        )
+      )(boardAfterClick)
+    : boardAfterClick;
+};
+
 const colorValues = { red: 0, orange: 0, blue: 0, green: 0, violet: 0 };
 function isVerticalLine(board: BallKinds[], successNumber: number) {
   let isInRow = false;
@@ -114,10 +135,14 @@ function isVerticalLine(board: BallKinds[], successNumber: number) {
   return isInRow;
 }
 
-export function boardOnNewMove(board: BallKinds[], id: number) {
+const boardOnNewMove = curry((id: number, board: BallKinds[]): [
+  BallKinds[],
+  boolean
+] => {
   const jumpyCellId = board.findIndex(x => x.kind === "jumpy");
   const firstSpot = board[jumpyCellId];
   const targetSpot = board[id];
+  let IsSecondClick = false;
   const newBoard: BallKinds[] = board.map((x, index) => {
     if (index === id && x.kind === "regular") {
       return { color: x.color, kind: "jumpy" };
@@ -135,6 +160,8 @@ export function boardOnNewMove(board: BallKinds[], id: number) {
       firstSpot.kind === "jumpy" &&
       canYouMoveHere()
     ) {
+      // TODO remove side-effect
+      IsSecondClick = true;
       return { kind: "regular", color: firstSpot.color };
     }
     if (
@@ -147,5 +174,5 @@ export function boardOnNewMove(board: BallKinds[], id: number) {
     }
     return x;
   });
-  return newBoard;
-}
+  return [newBoard, IsSecondClick];
+});

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import styled, { keyframes } from "styled-components";
-import { boardOnNewMove, setInitialBoard } from "./utils";
+import { updateBoardOnMove, setInitialBoard } from "./utils";
 
 export const ballColors = {
   red: "#9e0808",
@@ -71,11 +71,13 @@ const Container = styled.div`
   justify-content: center;
 `;
 
-const Cell = styled.div<{ firstInARow: boolean; bottomRow: boolean }>`
+const Cell = styled.div<{ index: number; size: number }>`
   width: calc(10vmin - 2px);
   height: calc(10vmin - 2px);
-  border-bottom: ${props => (!props.bottomRow ? "1px solid silver" : 0)};
-  border-left: ${props => (!props.firstInARow ? "1px solid silver" : 0)};
+  border-bottom: ${({ index, size }) =>
+    index >= size * size - size ? 0 : "1px solid silver"};
+  border-left: ${({ index, size }) =>
+    index % size === 0 ? 0 : "1px solid silver"};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -100,7 +102,7 @@ const App: React.FC = () => {
     setInitialBoard(size * size, randomBallsLength)
   );
   const handleMouseClick = (id: number) => () => {
-    const newBoard = boardOnNewMove(board, id);
+    const newBoard = updateBoardOnMove(board, id, randomBallsLength);
     setBoard(newBoard);
   };
 
@@ -108,11 +110,7 @@ const App: React.FC = () => {
     <Container>
       <Board>
         {board.map((cell, index) => (
-          <Cell
-            firstInARow={index % size === 0}
-            bottomRow={index >= size * size - size}
-            key={index}
-          >
+          <Cell index={index} size={size} key={index}>
             {<Ball onClick={handleMouseClick(index)} cell={cell} />}
           </Cell>
         ))}
