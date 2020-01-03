@@ -60,7 +60,7 @@ export const setDefaultBoard = (ballsNumber: number) =>
     kind: "empty"
   }));
 
-const updateBoardWithBalls = curry(
+const updateBoardWithRandomBalls = curry(
   (
     randomBallsLength: number,
     colors: string[],
@@ -79,60 +79,250 @@ const updateBoardWithBalls = curry(
     )([...board])
 );
 
+const byIndex = <T>(values: T[]) =>
+  values.reduce((acc, next, index) => {
+    acc[index] = next;
+    return acc;
+  }, {} as Record<string, T>);
+
 export const setInitialBoard = (
   size: number,
   randomBallsLength: number
 ): BallKinds[] =>
   flow(
     setDefaultBoard,
-    updateBoardWithBalls(randomBallsLength, Object.keys(ballColors), "regular"),
-    updateBoardWithBalls(randomBallsLength, Object.keys(ballColors), "small")
+    updateBoardWithRandomBalls(
+      randomBallsLength,
+      Object.keys(ballColors),
+      "regular"
+    ),
+    updateBoardWithRandomBalls(
+      randomBallsLength,
+      Object.keys(ballColors),
+      "small"
+    )
   )(size);
 
 const turnSmallBallsIntoRegularOnes = (board: BallKinds[]): BallKinds[] =>
   board.map(x => (x.kind === "small" ? { ...x, kind: "regular" } : x));
 
-export const updateBoardOnMove = (
-  board: BallKinds[],
-  id: number,
-  randomBallsLength: number
-) => {
-  const [boardAfterClick, IsSecondClick] = boardOnNewMove(id, board);
-  return IsSecondClick
-    ? flow(
-        turnSmallBallsIntoRegularOnes,
-        updateBoardWithBalls(
-          randomBallsLength,
-          Object.keys(ballColors),
-          "small"
-        )
-      )(boardAfterClick)
-    : boardAfterClick;
+export const updateBoardOnMove = (randomBallsLength: number) => (
+  board: BallKinds[]
+): BallKinds[] => {
+  return flow(
+    turnSmallBallsIntoRegularOnes,
+    updateBoardWithRandomBalls(
+      randomBallsLength,
+      Object.keys(ballColors),
+      "small"
+    )
+  )(board);
 };
 
-const colorValues = { red: 0, orange: 0, blue: 0, green: 0, violet: 0 };
-function isVerticalLine(board: BallKinds[], successNumber: number) {
-  let isInRow = false;
+export const updateBoardOnClick = (index: number) => (
+  board: Record<string, BallKinds>
+): [Record<string, BallKinds>, boolean] =>
+  flow(findAction(index), updateBoardOnAction(board))(board);
+
+export const updateBoard = (
+  index: number,
+  randomBallsLength: number,
+  size: number,
+  board: BallKinds[],
+  successNumber: number
+) => {
+  console.log("updateBoard");
+  const [nextBoard, afterMove] = flow(
+    byIndex,
+    updateBoardOnClick(index)
+  )(board) as [Record<string, BallKinds>, boolean];
+  return afterMove
+    ? flow(
+        updateBoardOnMove(randomBallsLength),
+        updateOnSuccess(successNumber, size)
+      )(Object.values(nextBoard))
+    : Object.values(nextBoard);
+};
+
+type Action =
+  | { type: "sameJumpyBall"; index: number; cell: BallKinds }
+  | {
+      type: "firstRegularBall";
+      index: number;
+      cell: BallKinds;
+    }
+  | {
+      type: "subsequentRegularBall";
+      to: { index: number; cell: BallKinds };
+      from: { index: number; cell: BallKinds };
+    }
+  | {
+      type: "move";
+      to: { index: number; cell: BallKinds };
+      from: { index: number; cell: BallKinds };
+    }
+  | { type: "updateBoardAfterClick"; board: Record<string, BallKinds> }
+  | { type: "default" };
+
+const findAction = (index: number) => (
+  board: Record<string, BallKinds>
+): Action | undefined => {
+  const cell = board[index];
+  const jumpy = Object.values(board).findIndex(x => x.kind === "jumpy");
+  const jumpyCell = jumpy === -1 ? undefined : board[jumpy];
+  if (cell.kind === "empty" && !!jumpyCell && jumpyCell.kind !== "empty") {
+    return {
+      type: "move",
+      to: { index, cell: { ...jumpyCell, kind: "regular" } },
+      from: { index: jumpy, cell: { kind: "empty" } }
+    };
+  }
+  if (cell.kind === "jumpy") {
+    return {
+      type: "sameJumpyBall",
+      index,
+      cell: { ...cell, kind: "regular" }
+    };
+  }
+  if (cell.kind === "regular" && jumpyCell?.kind === "jumpy") {
+    return {
+      type: "subsequentRegularBall",
+      to: { cell: { ...cell, kind: "jumpy" }, index },
+      from: { cell: { ...jumpyCell, kind: "regular" }, index: jumpy }
+    };
+  }
+  if (cell.kind === "regular" && !jumpyCell) {
+    return {
+      type: "firstRegularBall",
+      index,
+      cell: { ...cell, kind: "jumpy" }
+    };
+  }
+  return { type: "default" };
+};
+
+const updateBoardOnAction = (board: Record<string, BallKinds>) => (
+  action: Action
+): [Record<string, BallKinds>, boolean] => {
+  switch (action.type) {
+    case "sameJumpyBall":
+    case "firstRegularBall":
+      return [{ ...board, [action.index]: action.cell }, false];
+    case "subsequentRegularBall":
+      return [
+        {
+          ...board,
+          [action.to.index]: action.to.cell,
+          [action.from.index]: action.from.cell
+        },
+        false
+      ];
+    case "move":
+      return [
+        {
+          ...board,
+          [action.to.index]: action.to.cell,
+          [action.from.index]: action.from.cell
+        },
+        true
+      ];
+    default:
+      return [board, false];
+  }
+};
+
+const updateOnSuccess = (successNumber: number, size: number) => (
+  board: BallKinds[]
+) => {
+  const indexes = verticalLine(board, successNumber, size);
+  console.log("indexes", indexes);
+  let nextBoard: BallKinds[] = board;
+  if (!!indexes) {
+    nextBoard = indexes.reduce(
+      (acc, next) => {
+        acc[next] = { kind: "empty" };
+        return acc;
+      },
+      [...board]
+    );
+  }
+  return nextBoard;
+};
+
+const findNextIndex = (
+  type: "horizontal" | "vertical" | "diagonalRight" | "diagonalLeft",
+  index: number,
+  size: number
+) => {
+  switch (type) {
+    case "vertical":
+      return index - size;
+    case "horizontal":
+      return index - 1;
+    case "diagonalRight":
+      return index + size + 1;
+    case "diagonalLeft":
+      return index + size - 1;
+  }
+};
+
+function findNeighbours(
+  index: number,
+  elements: { color: keyof BallColors; index: number }[],
+  type: "horizontal" | "vertical" | "diagonalRight" | "diagonalLeft",
+  size: number,
+  board: BallKinds[]
+): typeof elements {
+  const cell = board[index];
+  const prevElement = elements[elements.length - 1];
+  if (
+    !cell ||
+    cell.kind !== "regular" ||
+    (cell.kind === "regular" && cell.color !== prevElement.color)
+  ) {
+    return elements;
+  }
+  return findNeighbours(
+    findNextIndex(type, index, size),
+    [...elements, { color: cell.color, index }],
+    type,
+    size,
+    board
+  );
+}
+
+function verticalLine(board: BallKinds[], successNumber: number, size: number) {
+  let indexes = undefined;
   for (let index = 0; index < board.length; index++) {
-    const up = range(4)
-      .map((_, i) => board[index - successNumber * i])
-      .filter(x => !!x)
+    const colorValues: Record<keyof BallColors, number[]> = {
+      red: [],
+      orange: [],
+      blue: [],
+      green: [],
+      violet: []
+    };
+    const up = range(successNumber)
+      .map((_, i) => ({
+        cell: board[index - size * i],
+        cellIndex: index - size * i
+      }))
+      .filter(x => !!x.cell)
       .reduce(
         (acc, next) => {
-          if (next.kind === "regular") {
-            acc[next.color] += 1;
+          if (next.cell.kind === "regular") {
+            acc[next.cell.color].push(next.cellIndex);
             return acc;
           }
           return acc;
         },
         { ...colorValues }
       );
-    if (Object.keys(up).includes(`${successNumber}`)) {
-      isInRow = true;
+    indexes = Object.values(up).find(x => x.length === successNumber);
+    if (!!indexes) {
       break;
     }
   }
-  return isInRow;
+  return indexes;
 }
 
 const boardOnNewMove = curry((id: number, board: BallKinds[]): [

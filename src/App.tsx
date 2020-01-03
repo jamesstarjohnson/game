@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useReducer } from "react";
 import styled, { keyframes } from "styled-components";
-import { updateBoardOnMove, setInitialBoard } from "./utils";
+import { updateBoard, setInitialBoard } from "./utils";
 
 export const ballColors = {
   red: "#9e0808",
@@ -93,23 +93,48 @@ const Board = styled.div`
   justify-content: space-evenly;
 `;
 
+type State = BallKinds[];
+
+type Action = {
+  type: "updateBoard";
+  board: BallKinds[];
+};
+
+function reducer(board: State, action: Action): State {
+  switch (action.type) {
+    case "updateBoard":
+      return action.board;
+    default:
+      return board;
+  }
+}
 const App: React.FC = () => {
   const size = 10;
   const randomBallsLength = 3;
+  const successNumber = 4;
   // console.log(setBoard(10, 3, ["red", "orange", "blue", "green", "violet"]));
   // const updateBallsBoard = updateBoard(randomBallsLength);
-  const [board, setBoard] = useState(
-    setInitialBoard(size * size, randomBallsLength)
-  );
-  const handleMouseClick = (id: number) => () => {
-    const newBoard = updateBoardOnMove(board, id, randomBallsLength);
-    setBoard(newBoard);
+  const initialState = setInitialBoard(size * size, randomBallsLength);
+
+  const [board, dispatch] = useReducer(reducer, initialState);
+  // const [board, setBoard] = useState(
+  //   setInitialBoard(size * size, randomBallsLength)
+  // );
+  const handleMouseClick = (index: number) => () => {
+    const nextBoard = updateBoard(
+      index,
+      randomBallsLength,
+      size,
+      board,
+      successNumber
+    );
+    dispatch({ type: "updateBoard", board: nextBoard });
   };
 
   return (
     <Container>
       <Board>
-        {board.map((cell, index) => (
+        {Object.values(board).map((cell, index) => (
           <Cell index={index} size={size} key={index}>
             {<Ball onClick={handleMouseClick(index)} cell={cell} />}
           </Cell>
