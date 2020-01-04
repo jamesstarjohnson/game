@@ -1,74 +1,58 @@
-import { random, range } from "lodash";
-import { flow, filter, curry, map } from "lodash/fp";
+import { range, sample } from "lodash";
+import { filter, map } from "lodash/fp";
 import { BallColors, Board, BallKind, ballColors, BoardRecord } from "./types";
-// interface Pipe {
-//   <F, S, T>(f: (a: F) => Readonly<T>, f1: (a: T) => S): (x: F) => S;
-//   <F, S, T, L>(f: (a: F) => Readonly<T>, f1: (a: T) => S, f2: (a: S) => L): (
-//     x: F
-//   ) => L;
-// }
-type Pipe = <F, S, T>(f: (a: F) => Readonly<T>, f1: (a: T) => S) => (x: F) => S;
-
-const pipe: Pipe = (f, f1) => x => f1(f(x));
+import { pipe } from "ramda";
 
 const get = <T>(array: readonly T[], index: number): T | undefined =>
   array[index];
 
-export const findRandomValueFromArray = <T>(values: T[]) =>
-  flow(
-    values => random(values.length - 1),
-    index => values[index]
-  )(values);
+// export const findRandomValueFromArray = <T>(values: T[]) =>
+//   pipe(
+//     (values: T[]) => random(values.length - 1),
+//     index => values[index]
+//   )(values);
 
 function canYouMoveHere() {
   return true;
 }
 
 function purifyBoard(board: Board) {
-  return flow(
-    (board: Board) => board,
-    board => board.map((x, index) => (x.kind === "empty" ? index : undefined)),
+  return pipe(
+    (board: Board) =>
+      board.map((x, index) => (x.kind === "empty" ? index : undefined)),
     filter<number>(x => x !== undefined)
   )(board);
 }
 
-const findRandomIndexes = curry(
-  (
-    randomIndexesLength: number,
-    result: number[],
-    indexes: number[]
-  ): number[] => {
-    if (result.length === randomIndexesLength) {
-      return result;
-    }
-    const [nextResult, nextindexes] = flow(
-      (init: number[]) => findRandomValueFromArray(init),
-      randomValue => [
-        [...result, randomValue] as number[],
-        indexes.filter(x => x !== randomValue) as number[]
-      ]
-    )(indexes);
-    return findRandomIndexes(randomIndexesLength, nextResult, nextindexes);
+const findRandomIndexes = (randomIndexesLength: number, result: number[]) => (
+  indexes: number[]
+): number[] => {
+  if (result.length === randomIndexesLength) {
+    return result;
   }
-);
+  const [nextResult, nextindexes] = pipe(
+    (indexes: number[]) => sample(indexes)!,
+    randomValue => [
+      [...result, randomValue],
+      indexes.filter(x => x !== randomValue)
+    ]
+  )(indexes);
+  return findRandomIndexes(randomIndexesLength, nextResult)(nextindexes);
+};
 
-const applyRandomBallsOnBoard = curry(
-  (
-    cellType: BallKind["kind"],
-    board: BallKind[],
-    randomIndexes: { index: number; color: keyof BallColors }[]
-  ) =>
-    randomIndexes.reduce(
-      (acc, next) => {
-        acc[next.index] = { color: next.color, kind: cellType };
-        return acc;
-      },
-      [...board]
-    )
-);
+const applyRandomBallsOnBoard = (cellType: BallKind["kind"], board: Board) => (
+  randomIndexes: { index: number; color: keyof BallColors }[]
+): Board =>
+  randomIndexes.reduce(
+    (acc, next) => {
+      acc[next.index] = { color: next.color, kind: cellType };
+      return acc;
+    },
+    [...board]
+  );
 
-export const setDefaultBoard = (ballsNumber: number) =>
-  range(0, ballsNumber).map<BallKind>(_ => ({
+export const setDefaultBoard = (ballsNumber: number): Board =>
+  range(0, ballsNumber).map(_ => ({
     kind: "empty"
   }));
 
@@ -76,29 +60,25 @@ const updateBoardWithRandomBalls = (
   randomBallsLength: number,
   colors: string[],
   cellType: "small" | "regular"
-) => (board: BallKind[]) =>
-  flow(
-    (board: BallKind[]) => board,
+) => (board: Board) =>
+  pipe(
     purifyBoard,
     findRandomIndexes(randomBallsLength, []),
     map((index: number) => ({
       index,
-      color: findRandomValueFromArray(colors)
+      color: sample(colors) as keyof BallColors
     })),
     applyRandomBallsOnBoard(cellType, board)
   )([...board]);
 
-const byIndex = <T>(values: T[]) =>
-  values.reduce<Record<string, T>>((acc, next, index) => {
+const byIndex = (values: Board) =>
+  values.reduce<Record<string, BallKind>>((acc, next, index) => {
     acc[index] = next;
     return acc;
   }, {});
 
-export const setInitialBoard = (
-  size: number,
-  randomBallsLength: number
-): Board =>
-  flow(
+export const setInitialBoard = (size: number, randomBallsLength: number) =>
+  pipe(
     setDefaultBoard,
     updateBoardWithRandomBalls(
       randomBallsLength,
@@ -115,7 +95,8 @@ export const setInitialBoard = (
 const turnSmallBallsIntoRegularOnes = (board: Board): Board =>
   board.map(x => (x.kind === "small" ? { ...x, kind: "regular" } : x));
 
-export const updateBoardOnMove = (randomBallsLength: number) => (
+export const updateBoardOnMove = (
+  randomBallsLength: number,
   board: Board
 ): Board => {
   return pipe(
@@ -126,31 +107,6 @@ export const updateBoardOnMove = (randomBallsLength: number) => (
       "small"
     )
   )(board);
-};
-
-export const updateBoardOnClick = (index: number) => (
-  board: BoardRecord
-): [BoardRecord, boolean] =>
-  flow(findAction(index), updateBoardOnAction(board))(board);
-
-export const updateBoard = (
-  index: number,
-  randomBallsLength: number,
-  size: number,
-  board: Board,
-  successNumber: number
-) => {
-  console.log("updateBoard");
-  const [nextBoard, afterMove] = flow(
-    byIndex,
-    updateBoardOnClick(index)
-  )(board) as [BoardRecord, boolean];
-  return afterMove
-    ? flow(
-        updateBoardOnMove(randomBallsLength),
-        updateOnSuccess(successNumber, size)
-      )(Object.values(nextBoard))
-    : Object.values(nextBoard);
 };
 
 type Action =
@@ -173,9 +129,7 @@ type Action =
   | { type: "updateBoardAfterClick"; board: BoardRecord }
   | { type: "default" };
 
-const findAction = (index: number) => (
-  board: BoardRecord
-): Action | undefined => {
+const findAction = (index: number) => (board: BoardRecord): Action => {
   const cell = board[index];
   const jumpy = Object.values(board).findIndex(x => x.kind === "jumpy");
   const jumpyCell = jumpy === -1 ? undefined : board[jumpy];
@@ -240,23 +194,62 @@ const updateBoardOnAction = (board: BoardRecord) => (
   }
 };
 
-const updateOnSuccess = (successNumber: number, size: number) => (
-  board: Board
+export const updateBoardOnClick = (index: number) => (
+  board: BoardRecord
+): [BoardRecord, boolean] =>
+  pipe(findAction(index), updateBoardOnAction(board))(board);
+
+export const updateBoard = (
+  index: number,
+  randomBallsLength: number,
+  size: number,
+  board: Board,
+  successNumber: number
 ) => {
-  const indexes = verticalLine(board, successNumber, size);
-  console.log("indexes", indexes);
-  let nextBoard: Board = board;
-  if (!!indexes) {
-    nextBoard = indexes.reduce(
+  const [nextBoard, afterMove] = pipe(
+    byIndex,
+    updateBoardOnClick(index)
+  )(board);
+  if (!afterMove) {
+    return Object.values(nextBoard);
+  }
+  const [isSuccess, updatedBoard] = updateOnSuccess(
+    successNumber,
+    size,
+    Object.values(nextBoard)
+  );
+  if (isSuccess) {
+    return updatedBoard;
+  }
+  const updatedBoardOnMove = updateBoardOnMove(randomBallsLength, updatedBoard);
+  const [_, updatedBoardAgain] = updateOnSuccess(
+    successNumber,
+    size,
+    updatedBoardOnMove
+  );
+  return updatedBoardAgain;
+};
+
+function updateOnSuccess(
+  successNumber: number,
+  size: number,
+  board: Board
+): [boolean, Board] {
+  const foundBalls = findHitBalls(size, successNumber, board);
+  if (foundBalls.length === 0) {
+    return [false, board];
+  }
+  return [
+    true,
+    foundBalls.reduce(
       (acc, next) => {
         acc[next] = { kind: "empty" };
         return acc;
       },
       [...board]
-    );
-  }
-  return nextBoard;
-};
+    )
+  ];
+}
 
 const findNextIndex = (
   type: "horizontal" | "vertical" | "diagonalRight" | "diagonalLeft",
@@ -289,7 +282,9 @@ function findNeighbours(
   if (
     !cell ||
     cell.kind !== "regular" ||
-    (cell.kind === "regular" && cell.color !== prevElement.color)
+    (cell.kind === "regular" &&
+      cell.color !== prevElement.color &&
+      elements.length > 0)
   ) {
     return elements;
   }
@@ -302,75 +297,53 @@ function findNeighbours(
   );
 }
 
-function verticalLine(board: Board, successNumber: number, size: number) {
-  let indexes = undefined;
-  for (let index = 0; index < board.length; index++) {
-    const colorValues: Record<keyof BallColors, number[]> = {
-      red: [],
-      orange: [],
-      blue: [],
-      green: [],
-      violet: []
-    };
-    const up = range(successNumber)
-      .map((_, i) => ({
-        cell: board[index - size * i],
-        cellIndex: index - size * i
-      }))
-      .filter(x => !!x.cell)
-      .reduce(
-        (acc, next) => {
-          if (next.cell.kind === "regular") {
-            acc[next.cell.color].push(next.cellIndex);
-            return acc;
-          }
-          return acc;
-        },
-        { ...colorValues }
-      );
-    indexes = Object.values(up).find(x => x.length === successNumber);
-    if (!!indexes) {
-      break;
-    }
-  }
-  return indexes;
-}
+const findHitBalls = (size: number, successNumber: number, board: Board) =>
+  board
+    .flatMap((_, index) => [
+      findNeighbours(index, [], "vertical", size, board),
+      findNeighbours(index, [], "diagonalLeft", size, board),
+      findNeighbours(index, [], "diagonalRight", size, board),
+      findNeighbours(index, [], "horizontal", size, board)
+    ])
+    .filter(x => x.length >= successNumber)
+    .flatMap(x => x)
+    .map(x => x.index);
 
-const boardOnNewMove = curry((id: number, board: Board): [Board, boolean] => {
-  const jumpyCellId = board.findIndex(x => x.kind === "jumpy");
-  const firstSpot = board[jumpyCellId];
-  const targetSpot = board[id];
-  let IsSecondClick = false;
-  const newBoard: Board = board.map((x, index) => {
-    if (index === id && x.kind === "regular") {
-      return { color: x.color, kind: "jumpy" };
-    }
-    if (index === id && x.kind === "jumpy") {
-      return { color: x.color, kind: "regular" };
-    }
-    if (targetSpot.kind === "regular" && x.kind === "jumpy") {
-      return { color: x.color, kind: "regular" };
-    }
-    if (
-      index === id &&
-      (x.kind === "empty" || x.kind === "small") &&
-      !!firstSpot &&
-      firstSpot.kind === "jumpy" &&
-      canYouMoveHere()
-    ) {
-      // TODO remove side-effect
-      IsSecondClick = true;
-      return { kind: "regular", color: firstSpot.color };
-    }
-    if (
-      jumpyCellId === index &&
-      x.kind === "jumpy" &&
-      (targetSpot.kind === "empty" || targetSpot.kind === "small") &&
-      canYouMoveHere()
-    ) {
-      return { kind: "empty" };
-    }
-    return x;
-  });
-  return [newBoard, IsSecondClick];
-});
+// const boardOnNewMove = curry((id: number, board: Board): [Board, boolean] => {
+//   const jumpyCellId = board.findIndex(x => x.kind === "jumpy");
+//   const firstSpot = board[jumpyCellId];
+//   const targetSpot = board[id];
+//   let IsSecondClick = false;
+//   const newBoard: Board = board.map((x, index) => {
+//     if (index === id && x.kind === "regular") {
+//       return { color: x.color, kind: "jumpy" };
+//     }
+//     if (index === id && x.kind === "jumpy") {
+//       return { color: x.color, kind: "regular" };
+//     }
+//     if (targetSpot.kind === "regular" && x.kind === "jumpy") {
+//       return { color: x.color, kind: "regular" };
+//     }
+//     if (
+//       index === id &&
+//       (x.kind === "empty" || x.kind === "small") &&
+//       !!firstSpot &&
+//       firstSpot.kind === "jumpy" &&
+//       canYouMoveHere()
+//     ) {
+//       // TODO remove side-effect
+//       IsSecondClick = true;
+//       return { kind: "regular", color: firstSpot.color };
+//     }
+//     if (
+//       jumpyCellId === index &&
+//       x.kind === "jumpy" &&
+//       (targetSpot.kind === "empty" || targetSpot.kind === "small") &&
+//       canYouMoveHere()
+//     ) {
+//       return { kind: "empty" };
+//     }
+//     return x;
+//   });
+//   return [newBoard, IsSecondClick];
+// });

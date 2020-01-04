@@ -93,7 +93,7 @@ function reducer(board: State, action: Action): State {
 }
 const App: React.FC = () => {
   const size = 10;
-  const randomBallsLength = 3;
+  const randomBallsLength = 4;
   const successNumber = 4;
   // console.log(setBoard(10, 3, ["red", "orange", "blue", "green", "violet"]));
   // const updateBallsBoard = updateBoard(randomBallsLength);
