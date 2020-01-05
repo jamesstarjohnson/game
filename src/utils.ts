@@ -1,16 +1,10 @@
-import { range, sample } from "lodash";
+import { range, sample, sum } from "lodash";
 import { filter, map } from "lodash/fp";
 import { BallColors, Board, BallKind, ballColors, BoardRecord } from "./types";
 import { pipe } from "ramda";
 
 const get = <T>(array: readonly T[], index: number): T | undefined =>
   array[index];
-
-// export const findRandomValueFromArray = <T>(values: T[]) =>
-//   pipe(
-//     (values: T[]) => random(values.length - 1),
-//     index => values[index]
-//   )(values);
 
 function canYouMoveHere() {
   return true;
@@ -308,6 +302,71 @@ const findHitBalls = (size: number, successNumber: number, board: Board) =>
     .filter(x => x.length >= successNumber)
     .flatMap(x => x)
     .map(x => x.index);
+
+function findPath(
+  board: Board,
+  indexes: number[],
+  allTheIndexes: number[],
+  currentIndex: number,
+  target: number,
+  size: number
+): any[] {
+  const a = [
+    currentIndex + 1,
+    currentIndex - 1,
+    currentIndex - size,
+    currentIndex + size
+  ];
+  const nextIndexes = a.filter(x => {
+    const res = board[x]?.kind === "empty" && !allTheIndexes.includes(x);
+    return res;
+  });
+  if (a.includes(target)) {
+    return [...indexes, target];
+  }
+  if (nextIndexes.length === 0) {
+    return indexes;
+  }
+  return nextIndexes.map(x =>
+    findPath(
+      board,
+      [...indexes, x],
+      [...allTheIndexes, ...nextIndexes],
+      x,
+      target,
+      size
+    )
+  );
+}
+
+function flattenNestedArrays(array: any[]): any[][] {
+  return array.reduce((acc, next) => {
+    if (Array.isArray(next) && !Array.isArray(next[0])) {
+      acc.push(next);
+      return acc;
+    }
+    return [...acc, ...flattenNestedArrays(next)];
+  }, []);
+}
+
+const board = range(0, 9).map<BallKind>(x => ({ kind: "empty" }));
+const indexes = findPath(board, [2], [2], 2, 0, 3);
+const nextIndexes = flattenNestedArrays(indexes).filter(x => x.includes(0));
+const minLength = Math.min(...nextIndexes.map(x => x.length));
+const shorterLengthIndexes = nextIndexes.filter(x => x.length === minLength);
+const optimalPath = shorterLengthIndexes.reduce<Record<string, number[]>>(
+  (acc, next) => {
+    const s = sum(next);
+    acc[s] = next;
+    return acc;
+  },
+  {}
+);
+const minSum = Math.min(...Object.keys(optimalPath).map(x => Number(x)));
+const result = optimalPath[minSum];
+
+console.log(indexes);
+console.log(result);
 
 // const boardOnNewMove = curry((id: number, board: Board): [Board, boolean] => {
 //   const jumpyCellId = board.findIndex(x => x.kind === "jumpy");
