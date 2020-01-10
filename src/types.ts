@@ -7,7 +7,7 @@ export const ballColors = {
 } as const;
 
 export type BallColors = typeof ballColors;
-type Colors = keyof BallColors;
+export type Colors = keyof BallColors;
 export type CellType = {
   color: keyof BallColors;
 };

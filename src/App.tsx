@@ -104,7 +104,7 @@ const App: React.FC = () => {
   //   setInitialBoard(size * size, randomBallsLength)
   // );
   const handleMouseClick = (index: number) => () => {
-    const nextBoard = updateBoard(
+    const nextBoard = updatexBoard(
       index,
       randomBallsLength,
       size,
