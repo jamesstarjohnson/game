@@ -8,7 +8,7 @@ import {
   BoardRecord,
   Colors
 } from "./types";
-import { pipe, equals, T } from "ramda";
+import { pipe, equals, flatten, findIndex } from "ramda";
 
 const get = <T>(array: readonly T[], index: number): T | undefined =>
   array[index];
@@ -90,7 +90,8 @@ export const setInitialBoard = (size: number, randomBallsLength: number) =>
       randomBallsLength,
       Object.keys(ballColors),
       "small"
-    )
+    ),
+    convertToTwoDimensions(size)
   )(size);
 
 const turnSmallBallsIntoRegularOnes = (board: Board): Board =>
@@ -111,94 +112,115 @@ export const updateBoardOnMove = (
 };
 
 type Action =
-  | { type: "sameJumpyBall"; index: number; cell: BallKind }
+  | { type: "sameJumpyBall"; toCoord: { x: number; y: number }; cell: BallKind }
   | {
       type: "firstRegularBall";
-      index: number;
+      toCoord: { x: number; y: number };
       cell: BallKind;
     }
   | {
       type: "subsequentRegularBall";
-      to: { index: number; cell: BallKind };
-      from: { index: number; cell: BallKind };
+      to: { toCoord: { x: number; y: number }; cell: BallKind };
+      from: { fromCoord: { x: number; y: number }; cell: BallKind };
     }
   | {
       type: "move";
-      to: { index: number; cell: BallKind };
-      from: { index: number; cell: BallKind };
+      to: { toCoord: { x: number; y: number }; cell: BallKind };
+      from: { fromCoord: { x: number; y: number }; cell: BallKind };
     }
   | { type: "updateBoardAfterClick"; board: BoardRecord }
   | { type: "default" };
 
-const findAction = (index: number, board: BoardRecord): Action => {
-  const cell = board[index];
-  const jumpy = Object.values(board).findIndex(x => x.kind === "jumpy");
-  const jumpyCell = jumpy === -1 ? undefined : board[jumpy];
-  if (cell.kind === "empty" && !!jumpyCell && jumpyCell.kind !== "empty") {
+const conver1DCoordsTo2D = (size: number, coord1D: number) => ({
+  y: Math.floor(coord1D / size),
+  x: coord1D % size
+});
+
+const findJumpyBallCoord = (board: BallKind[][], size: number) =>
+  pipe(
+    (board: BallKind[][]) => flatten(board),
+    findIndex(x => x.kind === "jumpy"),
+    x => (x !== -1 ? conver1DCoordsTo2D(size, x) : undefined)
+  )(board);
+
+const findAction = (
+  toCoord: { x: number; y: number },
+  size: number,
+  board: BallKind[][]
+): Action => {
+  const fromCoord = findJumpyBallCoord(board, size);
+  const toBall = board[toCoord.y][toCoord.x];
+  const fromBall = !fromCoord ? undefined : board[fromCoord.y][fromCoord.x];
+
+  if (toBall.kind === "empty" && !!fromCoord && fromBall?.kind === "jumpy") {
     return {
       type: "move",
-      to: { index, cell: { ...jumpyCell, kind: "regular" } },
-      from: { index: jumpy, cell: { kind: "empty" } }
+      to: { toCoord, cell: { ...fromBall, kind: "regular" } },
+      from: { fromCoord, cell: { kind: "empty" } }
     };
   }
-  if (cell.kind === "jumpy") {
+  if (!!toBall && toBall.kind === "jumpy") {
     return {
       type: "sameJumpyBall",
-      index,
-      cell: { ...cell, kind: "regular" }
+      toCoord,
+      cell: { ...toBall, kind: "regular" }
     };
   }
-  if (cell.kind === "regular" && jumpyCell?.kind === "jumpy") {
+  if (toBall.kind === "regular" && fromBall?.kind === "jumpy" && !!fromCoord) {
     return {
       type: "subsequentRegularBall",
-      to: { cell: { ...cell, kind: "jumpy" }, index },
-      from: { cell: { ...jumpyCell, kind: "regular" }, index: jumpy }
+      to: { cell: { ...toBall, kind: "jumpy" }, toCoord },
+      from: { cell: { ...fromBall, kind: "regular" }, fromCoord }
     };
   }
-  if (cell.kind === "regular" && !jumpyCell) {
+  if (toBall.kind === "regular" && !fromBall) {
     return {
       type: "firstRegularBall",
-      index,
-      cell: { ...cell, kind: "jumpy" }
+      toCoord,
+      cell: { ...toBall, kind: "jumpy" }
     };
   }
   return { type: "default" };
 };
 
+const setValueInTheBoard = (
+  value: BallKind,
+  coord: { x: number; y: number }
+) => (board: BallKind[][]) => {
+  return board.reduce<BallKind[][]>((acc, next, index) => {
+    const newNext = [...next];
+    if (coord.y === index) {
+      newNext[coord.x] = value;
+    }
+    acc.push(newNext);
+    return acc;
+  }, []);
+};
+
 const updateBoardOnAction = (
-  board: BoardRecord,
+  board: BallKind[][],
   action: Action
-): [BoardRecord, boolean] => {
+): BallKind[][] => {
   switch (action.type) {
     case "sameJumpyBall":
     case "firstRegularBall":
-      return [{ ...board, [action.index]: action.cell }, false];
+      return setValueInTheBoard(action.cell, action.toCoord)(board);
     case "subsequentRegularBall":
-      return [
-        {
-          ...board,
-          [action.to.index]: action.to.cell,
-          [action.from.index]: action.from.cell
-        },
-        false
-      ];
+      return pipe(
+        setValueInTheBoard(action.from.cell, action.from.fromCoord),
+        setValueInTheBoard(action.to.cell, action.to.toCoord)
+      )(board);
     case "move":
-      return [
-        {
-          ...board,
-          [action.to.index]: action.to.cell,
-          [action.from.index]: action.from.cell
-        },
-        true
-      ];
+      return pipe(
+        setValueInTheBoard(action.from.cell, action.from.fromCoord),
+        setValueInTheBoard(action.to.cell, action.to.toCoord)
+      )(board);
+
     default:
-      return [board, false];
+      return board;
   }
 };
 
-// const board = range(0, 25).map<BallKind>(x => ({
-//   kind: "empty"
-// }));
 const convertToTwoDimensions = (size: number) =>
   pipe((board: Board) =>
     board.reduce<BallKind[][]>((acc, next, index) => {
@@ -211,53 +233,39 @@ const convertToTwoDimensions = (size: number) =>
     }, [])
   );
 
-// console.log("2dimensions", convertToTwoDimensions(5)(board));
-
-export const updateBoardOnClick = (index: number, size: number) => (
-  board: BoardRecord
-): [BoardRecord, boolean] => {
-  const action = findAction(index, board);
-  const [nextBoard, moved] = updateBoardOnAction(board, action);
+export const updateBoardOnClick = (
+  coord: { x: number; y: number },
+  size: number
+) => (board: BallKind[][]): [BallKind[][], boolean] => {
+  const action = findAction(coord, size, board);
+  const nextBoard = updateBoardOnAction(board, action);
   return action.type === "move"
     ? [
         pipe(
-          (board: BoardRecord) => Object.values(board),
-          convertToTwoDimensions(size),
-          findActualPath(action.from.index, index, size),
-          (indexes: number[]) =>
-            indexes.reduce(
-              (acc, next) => {
-                acc[next] = { kind: "jumpy", color: "violet" };
-                return acc;
-              },
-              { ...board }
-            )
+          findActualPath(action.from.fromCoord, coord, size),
+          (indexes: { x: number; y: number }[]) =>
+            indexes.reduce((acc, next) => {
+              return setValueInTheBoard(
+                { kind: "regular", color: "green" },
+                next
+              )(acc);
+            }, board)
         )(nextBoard),
-        moved
+        true
       ]
-    : [nextBoard, moved];
+    : [nextBoard, false];
 };
 
-const isNotEmptyBall = (
-  value: BallKind
-): value is {
-  kind: Exclude<BallKind["kind"], "empty">;
-  color: Colors;
-} => value.kind === "empty";
-
 export const updateBoard = (
-  index: number,
+  coord: { x: number; y: number },
   randomBallsLength: number,
   size: number,
-  board: Board,
+  board: BallKind[][],
   successNumber: number
 ) => {
-  const [nextBoard, afterMove] = pipe(
-    byIndex,
-    updateBoardOnClick(index, size)
-  )(board);
+  const [nextBoard, afterMove] = updateBoardOnClick(coord, size)(board);
   if (!afterMove) {
-    return Object.values(nextBoard);
+    return nextBoard;
   }
 
   const [isSuccess, updatedBoard] = updateOnSuccess(
