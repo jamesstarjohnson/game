@@ -8,10 +8,17 @@ import {
   BoardRecord,
   Colors
 } from "./types";
-import { pipe, equals, flatten, findIndex } from "ramda";
+import { pipe, equals, findIndex } from "ramda";
 
-const get = <T>(array: readonly T[], index: number): T | undefined =>
-  array[index];
+function getFromTwoD<T>(
+  array: readonly T[][],
+  coord: { x: number; y: number }
+): T | undefined {
+  return array[coord.y][coord.x];
+}
+function getFromOneD<T>(array: readonly T[], coord: number): T | undefined {
+  return array[coord];
+}
 
 function canYouMoveHere() {
   return true;
@@ -97,19 +104,20 @@ export const setInitialBoard = (size: number, randomBallsLength: number) =>
 const turnSmallBallsIntoRegularOnes = (board: Board): Board =>
   board.map(x => (x.kind === "small" ? { ...x, kind: "regular" } : x));
 
-export const updateBoardOnMove = (
+export const updateBoardAfterMove = (
   randomBallsLength: number,
-  board: Board
-): Board => {
-  return pipe(
+  size: number
+) => (board: BallKind[][]) =>
+  pipe(
+    (board: BallKind[][]) => board.flat(),
     turnSmallBallsIntoRegularOnes,
     updateBoardWithRandomBalls(
       randomBallsLength,
       Object.keys(ballColors),
       "small"
-    )
+    ),
+    convertToTwoDimensions(size)
   )(board);
-};
 
 type Action =
   | { type: "sameJumpyBall"; toCoord: { x: number; y: number }; cell: BallKind }
@@ -131,16 +139,21 @@ type Action =
   | { type: "updateBoardAfterClick"; board: BoardRecord }
   | { type: "default" };
 
-const conver1DCoordsTo2D = (size: number, coord1D: number) => ({
+const convert1DTo2D = (size: number, coord1D: number) => ({
   y: Math.floor(coord1D / size),
   x: coord1D % size
 });
 
+export const convert2DTo1D = (
+  size: number,
+  { x, y }: { x: number; y: number }
+) => y * size + x;
+
 const findJumpyBallCoord = (board: BallKind[][], size: number) =>
   pipe(
-    (board: BallKind[][]) => flatten(board),
+    (board: BallKind[][]) => board.flat(),
     findIndex(x => x.kind === "jumpy"),
-    x => (x !== -1 ? conver1DCoordsTo2D(size, x) : undefined)
+    x => (x !== -1 ? convert1DTo2D(size, x) : undefined)
   )(board);
 
 const findAction = (
@@ -188,8 +201,9 @@ const setValueInTheBoard = (
   coord: { x: number; y: number }
 ) => (board: BallKind[][]) => {
   return board.reduce<BallKind[][]>((acc, next, index) => {
-    const newNext = [...next];
+    let newNext = next;
     if (coord.y === index) {
+      newNext = [...next];
       newNext[coord.x] = value;
     }
     acc.push(newNext);
@@ -268,70 +282,64 @@ export const updateBoard = (
     return nextBoard;
   }
 
-  const [isSuccess, updatedBoard] = updateOnSuccess(
+  const [updatedBoard, isSuccess] = updateOnSuccess(
     successNumber,
-    size,
-    Object.values(nextBoard)
-  );
+    size
+  )(nextBoard);
   if (isSuccess) {
     return updatedBoard;
   }
-  const updatedBoardOnMove = updateBoardOnMove(randomBallsLength, updatedBoard);
-  const [_, updatedBoardAgain] = updateOnSuccess(
-    successNumber,
-    size,
-    updatedBoardOnMove
-  );
+  const [updatedBoardAgain] = pipe(
+    updateBoardAfterMove(randomBallsLength, size),
+    updateOnSuccess(successNumber, size)
+  )(updatedBoard);
   return updatedBoardAgain;
 };
 
-function updateOnSuccess(
-  successNumber: number,
-  size: number,
-  board: Board
-): [boolean, Board] {
+const updateOnSuccess = (successNumber: number, size: number) => (
+  board: BallKind[][]
+): [BallKind[][], boolean] => {
   const foundBalls = findHitBalls(size, successNumber, board);
   if (foundBalls.length === 0) {
-    return [false, board];
+    return [board, false];
   }
   return [
-    true,
     foundBalls.reduce(
-      (acc, next) => {
-        acc[next] = { kind: "empty" };
-        return acc;
-      },
-      [...board]
-    )
+      (acc, next) => setValueInTheBoard({ kind: "empty" }, next)(acc),
+      board
+    ),
+    true
   ];
-}
+};
 
 const findNextIndex = (
   type: "horizontal" | "vertical" | "diagonalRight" | "diagonalLeft",
-  index: number,
+  coord: { x: number; y: number },
   size: number
 ) => {
   switch (type) {
     case "vertical":
-      return index - size;
+      return { ...coord, y: coord.y - 1 };
     case "horizontal":
-      return index - 1;
+      return { ...coord, x: coord.x - 1 };
     case "diagonalRight":
-      return index + size + 1;
+      return { y: coord.y + 1, x: coord.x + 1 };
     case "diagonalLeft":
-      return index + size - 1;
+      return { y: coord.y + 1, x: coord.x - 1 };
   }
 };
 
 function findNeighbours(
-  index: number,
-  elements: Readonly<{ color: keyof BallColors; index: number }[]>,
+  coord: { x: number; y: number },
+  elements: Readonly<
+    { color: keyof BallColors; coord: { x: number; y: number } }[]
+  >,
   type: "horizontal" | "vertical" | "diagonalRight" | "diagonalLeft",
   size: number,
-  board: Board
+  board: BallKind[][]
 ): typeof elements {
-  const cell = get(board, index);
-  const prevElement = get(elements, elements.length - 1) || {
+  const cell = getFromTwoD(board, coord);
+  const prevElement = getFromOneD(elements, elements.length - 1) || {
     color: undefined
   };
   if (
@@ -344,25 +352,42 @@ function findNeighbours(
     return elements;
   }
   return findNeighbours(
-    findNextIndex(type, index, size),
-    [...elements, { color: cell.color, index }],
+    findNextIndex(type, coord, size),
+    [...elements, { color: cell.color, coord }],
     type,
     size,
     board
   );
 }
 
-const findHitBalls = (size: number, successNumber: number, board: Board) =>
+const findHitBalls = (
+  size: number,
+  successNumber: number,
+  board: BallKind[][]
+) =>
   board
+    .flat()
     .flatMap((_, index) => [
-      findNeighbours(index, [], "vertical", size, board),
-      findNeighbours(index, [], "diagonalLeft", size, board),
-      findNeighbours(index, [], "diagonalRight", size, board),
-      findNeighbours(index, [], "horizontal", size, board)
+      findNeighbours(convert1DTo2D(size, index), [], "vertical", size, board),
+      findNeighbours(
+        convert1DTo2D(size, index),
+        [],
+        "diagonalLeft",
+        size,
+        board
+      ),
+      findNeighbours(
+        convert1DTo2D(size, index),
+        [],
+        "diagonalRight",
+        size,
+        board
+      ),
+      findNeighbours(convert1DTo2D(size, index), [], "horizontal", size, board)
     ])
     .filter(x => x.length >= successNumber)
     .flatMap(x => x)
-    .map(x => x.index);
+    .map(x => x.coord);
 
 function createBoardPoint({ x, y }: { x: number; y: number }) {
   return { x, y };

@@ -1,6 +1,6 @@
 import React, { useReducer } from "react";
 import styled, { keyframes } from "styled-components";
-import { updateBoard, setInitialBoard } from "./utils";
+import { updateBoard, setInitialBoard, convert2DTo1D } from "./utils";
 import { ballColors, CellType, Board, BallKind } from "./types";
 
 const vibrate = keyframes`
@@ -54,33 +54,38 @@ const Container = styled.div`
   justify-content: center;
 `;
 
-const Cell = styled.div<{ index: number; size: number }>`
+// border-bottom: ${({ index, size }) =>
+//   index >= size * size - size ? 0 : "1px solid silver"};
+// border-left: ${({ index, size }) =>
+//   index % size === 0 ? 0 : "1px solid silver"};
+const Cell = styled.div`
   width: calc(10vmin - 2px);
   height: calc(10vmin - 2px);
-  border-bottom: ${({ index, size }) =>
-    index >= size * size - size ? 0 : "1px solid silver"};
-  border-left: ${({ index, size }) =>
-    index % size === 0 ? 0 : "1px solid silver"};
   display: flex;
   align-items: center;
   justify-content: center;
 `;
 
-const BallBoard = styled.div`
+// const BallBoard = styled.div`
+//   width: 100vmin;
+//   height: calc(100vmin - 2px);
+//   border: 1px solid silver;
+//   display: flex;
+//   flex-wrap: wrap;
+//   align-items: center;
+//   justify-content: space-evenly;
+// `;
+
+const BallBoard = styled.table`
   width: 100vmin;
-  height: calc(100vmin - 2px);
-  border: 1px solid silver;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-evenly;
+  heightl: 100vmin;
 `;
 
-type State = Board;
+type State = BallKind[][];
 
 type Action = {
   type: "updateBoard";
-  board: Board;
+  board: BallKind[][];
 };
 
 function reducer(board: State, action: Action): State {
@@ -103,9 +108,9 @@ const App: React.FC = () => {
   // const [board, setBoard] = useState(
   //   setInitialBoard(size * size, randomBallsLength)
   // );
-  const handleMouseClick = (index: number) => () => {
-    const nextBoard = updatexBoard(
-      index,
+  const handleMouseClick = (coord: { x: number; y: number }) => () => {
+    const nextBoard = updateBoard(
+      coord,
       randomBallsLength,
       size,
       board,
@@ -117,11 +122,29 @@ const App: React.FC = () => {
   return (
     <Container>
       <BallBoard>
-        {Object.values(board).map((cell, index) => (
+        {board.map((row, y) => (
+          <tr>
+            {row.map((column, x) => (
+              <td>
+                {
+                  <Cell key={convert2DTo1D(size, { x, y })}>
+                    {
+                      <Ball
+                        onClick={handleMouseClick({ x, y })}
+                        cell={column}
+                      />
+                    }
+                  </Cell>
+                }
+              </td>
+            ))}
+          </tr>
+        ))}
+        {/* {Object.values(board).map((cell, index) => (
           <Cell index={index} size={size} key={index}>
             {<Ball onClick={handleMouseClick(index)} cell={cell} />}
           </Cell>
-        ))}
+        ))} */}
       </BallBoard>
     </Container>
   );
