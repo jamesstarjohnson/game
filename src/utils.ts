@@ -14,7 +14,12 @@ function getFromTwoD<T>(
   array: readonly T[][],
   coord: { x: number; y: number }
 ): T | undefined {
-  return array[coord.y][coord.x];
+  try {
+    const res = array[coord.y][coord.x];
+    return res;
+  } catch (error) {
+    return undefined;
+  }
 }
 function getFromOneD<T>(array: readonly T[], coord: number): T | undefined {
   return array[coord];
@@ -99,7 +104,7 @@ export const setInitialBoard = (size: number, randomBallsLength: number) =>
       "small"
     ),
     convertToTwoDimensions(size)
-  )(size);
+  )(size * size);
 
 const turnSmallBallsIntoRegularOnes = (board: Board): Board =>
   board.map(x => (x.kind === "small" ? { ...x, kind: "regular" } : x));
@@ -162,8 +167,8 @@ const findAction = (
   board: BallKind[][]
 ): Action => {
   const fromCoord = findJumpyBallCoord(board, size);
-  const toBall = board[toCoord.y][toCoord.x];
-  const fromBall = !fromCoord ? undefined : board[fromCoord.y][fromCoord.x];
+  const toBall = getFromTwoD(board, toCoord)!;
+  const fromBall = !fromCoord ? undefined : getFromTwoD(board, fromCoord);
 
   if (toBall.kind === "empty" && !!fromCoord && fromBall?.kind === "jumpy") {
     return {
@@ -314,8 +319,7 @@ const updateOnSuccess = (successNumber: number, size: number) => (
 
 const findNextIndex = (
   type: "horizontal" | "vertical" | "diagonalRight" | "diagonalLeft",
-  coord: { x: number; y: number },
-  size: number
+  coord: { x: number; y: number }
 ) => {
   switch (type) {
     case "vertical":
@@ -352,7 +356,7 @@ function findNeighbours(
     return elements;
   }
   return findNeighbours(
-    findNextIndex(type, coord, size),
+    findNextIndex(type, coord),
     [...elements, { color: cell.color, coord }],
     type,
     size,
@@ -399,14 +403,15 @@ const isEqual = (a: { x: number; y: number }) => (a1: {
   x: number;
   y: number;
 }) => equals(createBoardPointString(a), createBoardPointString(a1));
-
 function findPath(
   board: BallKind[][],
   indexes: { x: number; y: number }[],
   allTheIndexes: Set<string>,
   currentIndex: { x: number; y: number },
   target: { x: number; y: number },
-  size: number
+  size: number,
+  count: number = 0,
+  foundCount: number = 0
 ): any[] {
   const a = [
     createBoardPoint({ x: currentIndex.x + 1, y: currentIndex.y }),
@@ -416,13 +421,17 @@ function findPath(
   ];
   const nextIndexes = a.filter(({ x, y }) => {
     const res =
-      board[x][y]?.kind === "empty" &&
-      !allTheIndexes.has(createBoardPointString({ x, y }));
+      getFromTwoD(board, { x, y })?.kind === "empty" &&
+      !indexes.find(element => element.y === y && element.x === x);
+    // !allTheIndexes.has(createBoardPointString({ x, y }));
     return res;
   });
-
+  if (foundCount > 5 || count >= 10) {
+    return indexes;
+  }
   if (a.find(isEqual(target))) {
-    return [...indexes, { x: 1, y: 2 }];
+    foundCount++;
+    return [...indexes, target];
   }
   if (nextIndexes.length === 0) {
     return indexes;
@@ -433,7 +442,16 @@ function findPath(
     allTheIndexes
   );
   return nextIndexes.map(x =>
-    findPath(board, [...indexes, x], nextAllTheIndexes, x, target, size)
+    findPath(
+      board,
+      [...indexes, x],
+      nextAllTheIndexes,
+      x,
+      target,
+      size,
+      ++count,
+      foundCount
+    )
   );
 }
 
@@ -456,7 +474,7 @@ const findActualPath = (
   const indexes = findPath(
     board,
     [from],
-    new Set(createBoardPointString(from)),
+    new Set([createBoardPointString(from)]),
     from,
     to,
     size
@@ -468,18 +486,20 @@ const findActualPath = (
   );
   const minLength = Math.min(...nextIndexes.map(x => x.length));
   const shorterLengthIndexes = nextIndexes.filter(x => x.length === minLength);
-  const optimalPath = shorterLengthIndexes.reduce<
-    Record<string, { x: number; y: number }[]>
-  >((acc, next) => {
-    const s = sum(next);
-    acc[s] = next;
-    return acc;
-  }, {});
-  const index =
-    to.y < from.y || to.x < to.y
-      ? Math.min(...Object.keys(optimalPath).map(x => Number(x)))
-      : Math.max(...Object.keys(optimalPath).map(x => Number(x)));
-  return optimalPath[index];
+  console.log(shorterLengthIndexes);
+  return shorterLengthIndexes[0];
+  // const optimalPath = shorterLengthIndexes.reduce<
+  //   Record<string, { x: number; y: number }[]>
+  // >((acc, next) => {
+  //   const s = sum(next.map(x => convert2DTo1D(size, x)));
+  //   acc[s] = next;
+  //   return acc;
+  // }, {});
+  // const index =
+  //   to.y < from.y || to.x < from.x
+  //     ? Math.min(...Object.keys(optimalPath).map(x => Number(x)))
+  //     : Math.max(...Object.keys(optimalPath).map(x => Number(x)));
+  // return optimalPath[index];
 };
 
 // console.log(findActualPath(20, 0, 5)(board));

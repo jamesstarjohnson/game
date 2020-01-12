@@ -79,6 +79,11 @@ const Cell = styled.div`
 const BallBoard = styled.table`
   width: 100vmin;
   heightl: 100vmin;
+  border-collapse: collapse;
+`;
+
+const Td = styled.td`
+  border: 1px solid #dddddd;
 `;
 
 type State = BallKind[][];
@@ -100,14 +105,9 @@ const App: React.FC = () => {
   const size = 10;
   const randomBallsLength = 4;
   const successNumber = 4;
-  // console.log(setBoard(10, 3, ["red", "orange", "blue", "green", "violet"]));
-  // const updateBallsBoard = updateBoard(randomBallsLength);
-  const initialState = setInitialBoard(size * size, randomBallsLength);
+  const initialState = setInitialBoard(size, randomBallsLength);
 
   const [board, dispatch] = useReducer(reducer, initialState);
-  // const [board, setBoard] = useState(
-  //   setInitialBoard(size * size, randomBallsLength)
-  // );
   const handleMouseClick = (coord: { x: number; y: number }) => () => {
     const nextBoard = updateBoard(
       coord,
@@ -125,7 +125,7 @@ const App: React.FC = () => {
         {board.map((row, y) => (
           <tr>
             {row.map((column, x) => (
-              <td>
+              <Td>
                 {
                   <Cell key={convert2DTo1D(size, { x, y })}>
                     {
@@ -136,7 +136,7 @@ const App: React.FC = () => {
                     }
                   </Cell>
                 }
-              </td>
+              </Td>
             ))}
           </tr>
         ))}
