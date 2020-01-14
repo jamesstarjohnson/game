@@ -1,5 +1,6 @@
-import { range, sample, sum } from "lodash";
+import { range, sample } from "lodash";
 import { filter, map } from "lodash/fp";
+import PF from "pathfinding";
 import {
   BallColors,
   Board,
@@ -9,6 +10,7 @@ import {
   Colors
 } from "./types";
 import { pipe, equals, findIndex } from "ramda";
+import { clearLine } from "readline";
 
 function getFromTwoD<T>(
   array: readonly T[][],
@@ -139,7 +141,7 @@ type Action =
   | {
       type: "move";
       to: { toCoord: { x: number; y: number }; cell: BallKind };
-      from: { fromCoord: { x: number; y: number }; cell: BallKind };
+      from: { fromCoord: { x: number; y: number }; color: Colors };
     }
   | { type: "updateBoardAfterClick"; board: BoardRecord }
   | { type: "default" };
@@ -174,7 +176,7 @@ const findAction = (
     return {
       type: "move",
       to: { toCoord, cell: { ...fromBall, kind: "regular" } },
-      from: { fromCoord, cell: { kind: "empty" } }
+      from: { fromCoord, color: fromBall.color }
     };
   }
   if (!!toBall && toBall.kind === "jumpy") {
@@ -231,8 +233,10 @@ const updateBoardOnAction = (
       )(board);
     case "move":
       return pipe(
-        setValueInTheBoard(action.from.cell, action.from.fromCoord),
-        setValueInTheBoard(action.to.cell, action.to.toCoord)
+        setValueInTheBoard(
+          { kind: "regular", color: action.from.color },
+          action.from.fromCoord
+        )
       )(board);
 
     default:
@@ -240,9 +244,9 @@ const updateBoardOnAction = (
   }
 };
 
-const convertToTwoDimensions = (size: number) =>
-  pipe((board: Board) =>
-    board.reduce<BallKind[][]>((acc, next, index) => {
+const convertToTwoDimensions = <T>(size: number) =>
+  pipe((board: T[]) =>
+    board.reduce<T[][]>((acc, next, index) => {
       if (index % size === 0) {
         acc.push([next]);
         return acc;
@@ -251,6 +255,16 @@ const convertToTwoDimensions = (size: number) =>
       return acc;
     }, [])
   );
+
+const applyMovingBall = (board: BallKind[][], color: Colors) => (
+  indexes: { x: number; y: number }[]
+) =>
+  indexes.reduce((acc, next, index) => {
+    return setValueInTheBoard(
+      { kind: "empty", data: { color, index } },
+      next
+    )(acc);
+  }, board);
 
 export const updateBoardOnClick = (
   coord: { x: number; y: number },
@@ -261,14 +275,8 @@ export const updateBoardOnClick = (
   return action.type === "move"
     ? [
         pipe(
-          findActualPath(action.from.fromCoord, coord, size),
-          (indexes: { x: number; y: number }[]) =>
-            indexes.reduce((acc, next) => {
-              return setValueInTheBoard(
-                { kind: "regular", color: "green" },
-                next
-              )(acc);
-            }, board)
+          findPath(action.from.fromCoord, coord, size),
+          applyMovingBall(nextBoard, action.from.color)
         )(nextBoard),
         true
       ]
@@ -283,9 +291,11 @@ export const updateBoard = (
   successNumber: number
 ) => {
   const [nextBoard, afterMove] = updateBoardOnClick(coord, size)(board);
-  if (!afterMove) {
-    return nextBoard;
-  }
+  // console.log(nextBoard);
+  // if (afterMove) {
+  //   return nextBoard;
+  // }
+  return nextBoard;
 
   const [updatedBoard, isSuccess] = updateOnSuccess(
     successNumber,
@@ -294,6 +304,7 @@ export const updateBoard = (
   if (isSuccess) {
     return updatedBoard;
   }
+
   const [updatedBoardAgain] = pipe(
     updateBoardAfterMove(randomBallsLength, size),
     updateOnSuccess(successNumber, size)
@@ -403,108 +414,64 @@ const isEqual = (a: { x: number; y: number }) => (a1: {
   x: number;
   y: number;
 }) => equals(createBoardPointString(a), createBoardPointString(a1));
-function findPath(
-  board: BallKind[][],
-  indexes: { x: number; y: number }[],
-  allTheIndexes: Set<string>,
-  currentIndex: { x: number; y: number },
-  target: { x: number; y: number },
-  size: number,
-  count: number = 0,
-  foundCount: number = 0
-): any[] {
-  const a = [
-    createBoardPoint({ x: currentIndex.x + 1, y: currentIndex.y }),
-    createBoardPoint({ x: currentIndex.x - 1, y: currentIndex.y }),
-    createBoardPoint({ x: currentIndex.x, y: currentIndex.y + 1 }),
-    createBoardPoint({ x: currentIndex.x, y: currentIndex.y - 1 })
-  ];
-  const nextIndexes = a.filter(({ x, y }) => {
-    const res =
-      getFromTwoD(board, { x, y })?.kind === "empty" &&
-      !indexes.find(element => element.y === y && element.x === x);
-    // !allTheIndexes.has(createBoardPointString({ x, y }));
-    return res;
-  });
-  if (foundCount > 5 || count >= 10) {
-    return indexes;
-  }
-  if (a.find(isEqual(target))) {
-    foundCount++;
-    return [...indexes, target];
-  }
-  if (nextIndexes.length === 0) {
-    return indexes;
-  }
 
-  const nextAllTheIndexes = nextIndexes.reduce(
-    (acc, { x, y }) => acc.add(createBoardPointString({ x, y })),
-    allTheIndexes
-  );
-  return nextIndexes.map(x =>
-    findPath(
-      board,
-      [...indexes, x],
-      nextAllTheIndexes,
-      x,
-      target,
-      size,
-      ++count,
-      foundCount
-    )
-  );
-}
+// function findPath(
+//   board: BallKind[][],
+//   indexes: Map<string, { x: number; y: number }>,
+//   currentIndex: { x: number; y: number },
+//   target: { x: number; y: number }
+// ): any[] {
+//   const a = [
+//     createBoardPoint({ x: currentIndex.x + 1, y: currentIndex.y }),
+//     createBoardPoint({ x: currentIndex.x - 1, y: currentIndex.y }),
+//     createBoardPoint({ x: currentIndex.x, y: currentIndex.y + 1 }),
+//     createBoardPoint({ x: currentIndex.x, y: currentIndex.y - 1 })
+//   ];
+//   const nextIndexes = a.filter(({ x, y }) => {
+//     const res =
+//       getFromTwoD(board, { x, y })?.kind === "empty" &&
+//       !indexes.has(createBoardPointString({ x, y }));
+//     return res;
+//   });
+//   if (a.find(isEqual(target))) {
+//     indexes.set(createBoardPointString(target), target);
+//     return Array.from(indexes.values());
+//   }
+//   if (nextIndexes.length === 0) {
+//     return [];
+//   }
 
-function flattenNestedArrays(array: any[]): { x: number; y: number }[][] {
-  return array.reduce((acc, next) => {
-    if (Array.isArray(next) && !Array.isArray(next[0])) {
-      acc.push(next);
-      return acc;
-    }
-    return [...acc, ...flattenNestedArrays(next)];
-  }, []);
-}
+//   // const nextAllTheIndexes = nextIndexes.reduce(
+//   //   (acc, { x, y }) => acc.add(createBoardPointString({ x, y })),
+//   //   allTheIndexes
+//   // );
+//   return nextIndexes.map(x =>
+//     findPath(
+//       board,
+//       new Map(indexes.set(createBoardPointString(x), x)),
+//       x,
+//       target
+//     )
+//   );
+// }
 
-// const indexes = findPath(board, [2], [2], 2, 0, 3);
-const findActualPath = (
+const findPath = (
   from: { x: number; y: number },
   to: { x: number; y: number },
   size: number
 ) => (board: BallKind[][]) => {
-  const indexes = findPath(
-    board,
-    [from],
-    new Set([createBoardPointString(from)]),
-    from,
-    to,
-    size
-  );
-  // console.log(indexes);
-  // return indexes;
-  const nextIndexes = flattenNestedArrays(indexes).filter(x =>
-    x.find(isEqual(to))
-  );
-  const minLength = Math.min(...nextIndexes.map(x => x.length));
-  const shorterLengthIndexes = nextIndexes.filter(x => x.length === minLength);
-  console.log(shorterLengthIndexes);
-  return shorterLengthIndexes[0];
-  // const optimalPath = shorterLengthIndexes.reduce<
-  //   Record<string, { x: number; y: number }[]>
-  // >((acc, next) => {
-  //   const s = sum(next.map(x => convert2DTo1D(size, x)));
-  //   acc[s] = next;
-  //   return acc;
-  // }, {});
-  // const index =
-  //   to.y < from.y || to.x < from.x
-  //     ? Math.min(...Object.keys(optimalPath).map(x => Number(x)))
-  //     : Math.max(...Object.keys(optimalPath).map(x => Number(x)));
-  // return optimalPath[index];
+  const matrix = pipe(
+    (board: BallKind[][]) =>
+      board.flat().map(x => (x.kind === "empty" ? 0 : 1)),
+    convertToTwoDimensions(size)
+  )(board);
+  const grid = new PF.Grid(matrix);
+  const finder = new PF.AStarFinder();
+  const path = finder
+    .findPath(from.x, from.y, to.x, to.y, grid)
+    .map(([x, y]) => ({ x, y }));
+  return path;
 };
-
-// console.log(findActualPath(20, 0, 5)(board));
-// const result = findActualPath(2, 0, indexes);
-// console.log(result);
 
 // const boardOnNewMove = curry((id: number, board: Board): [Board, boolean] => {
 //   const jumpyCellId = board.findIndex(x => x.kind === "jumpy");

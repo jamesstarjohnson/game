@@ -1,7 +1,7 @@
 import React, { useReducer } from "react";
 import styled, { keyframes } from "styled-components";
 import { updateBoard, setInitialBoard, convert2DTo1D } from "./utils";
-import { ballColors, CellType, Board, BallKind } from "./types";
+import { ballColors, CellType, BallKind } from "./types";
 
 const vibrate = keyframes`
   0% {transform: scale(1);}
@@ -9,11 +9,26 @@ const vibrate = keyframes`
   100% {transform: scale(1);}
 `;
 
+const moving = keyframes`
+  0% { transform: scale(1); }
+  99% { transform: scale(1); }
+  100% {transform: scale(0);}
+`;
+
 const RegularBall = styled.div<CellType>`
   background-color: ${({ color }) => ballColors[color]};
   width: 100%;
   height: 100%;
   border-radius: 50%;
+`;
+
+const MovingBall = styled(RegularBall)<{ index: number }>`
+  animation-name: ${moving};
+  animation-duration: 200ms;
+  animation-timing-function: ease-in-out;
+  animation-delay: ${({ index }) => `${2 * index}00ms`};
+  transform: scale(0);
+  animation-fill-mode: forwards;
 `;
 
 const SmallBall = styled(RegularBall)`
@@ -42,7 +57,11 @@ const Ball: React.FC<{ cell: BallKind; onClick: () => void }> = ({
     case "small":
       return <SmallBall color={cell.color} />;
     case "empty":
-      return <EmptyCell onClick={onClick} />;
+      return cell.data ? (
+        <MovingBall index={cell.data.index} color={cell.data.color} />
+      ) : (
+        <EmptyCell onClick={onClick} />
+      );
   }
 };
 
@@ -54,10 +73,6 @@ const Container = styled.div`
   justify-content: center;
 `;
 
-// border-bottom: ${({ index, size }) =>
-//   index >= size * size - size ? 0 : "1px solid silver"};
-// border-left: ${({ index, size }) =>
-//   index % size === 0 ? 0 : "1px solid silver"};
 const Cell = styled.div`
   width: calc(10vmin - 2px);
   height: calc(10vmin - 2px);
@@ -65,16 +80,6 @@ const Cell = styled.div`
   align-items: center;
   justify-content: center;
 `;
-
-// const BallBoard = styled.div`
-//   width: 100vmin;
-//   height: calc(100vmin - 2px);
-//   border: 1px solid silver;
-//   display: flex;
-//   flex-wrap: wrap;
-//   align-items: center;
-//   justify-content: space-evenly;
-// `;
 
 const BallBoard = styled.table`
   width: 100vmin;
@@ -101,6 +106,7 @@ function reducer(board: State, action: Action): State {
       return board;
   }
 }
+
 const App: React.FC = () => {
   const size = 10;
   const randomBallsLength = 4;
@@ -109,6 +115,7 @@ const App: React.FC = () => {
 
   const [board, dispatch] = useReducer(reducer, initialState);
   const handleMouseClick = (coord: { x: number; y: number }) => () => {
+    console.log("t", coord);
     const nextBoard = updateBoard(
       coord,
       randomBallsLength,
