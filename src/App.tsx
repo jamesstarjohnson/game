@@ -10,9 +10,20 @@ const vibrate = keyframes`
 `;
 
 const moving = keyframes`
-  0% { transform: scale(1); }
-  99% { transform: scale(1); }
-  100% {transform: scale(0);}
+  0% { 
+    opacity: 1;
+  }
+  99% { 
+    opacity: 1;
+   }
+  100% { 
+    opacity: 0;
+  }
+`;
+
+const delayedRegularBall = keyframes`
+0% { transform: scale(1) }
+100% {transform: scale(1)}
 `;
 
 const RegularBall = styled.div<CellType>`
@@ -22,12 +33,24 @@ const RegularBall = styled.div<CellType>`
   border-radius: 50%;
 `;
 
-const MovingBall = styled(RegularBall)<{ index: number }>`
-  animation-name: ${moving};
-  animation-duration: 200ms;
+const RegularDelayedBall = styled(RegularBall)<{ delay: number }>`
+  animation-name: ${delayedRegularBall};
+  animation-duration: 1ms;
   animation-timing-function: ease-in-out;
-  animation-delay: ${({ index }) => `${2 * index}00ms`};
+  animation-delay: ${({ delay }) => `${delay}ms`};
   transform: scale(0);
+  animation-fill-mode: forwards;
+`;
+
+const MovingBall = styled(RegularBall)<{
+  duration: number;
+  delay: number;
+}>`
+  animation-name: ${moving};
+  animation-duration: ${({ duration }) => `${duration}ms`};
+  animation-timing-function: ease-in-out;
+  animation-delay: ${({ delay }) => `${delay}ms`};
+  opacity: 0;
   animation-fill-mode: forwards;
 `;
 
@@ -53,12 +76,26 @@ const Ball: React.FC<{ cell: BallKind; onClick: () => void }> = ({
     case "jumpy":
       return <JumpyBall onClick={onClick} color={cell.color} />;
     case "regular":
-      return <RegularBall onClick={onClick} color={cell.color} />;
+      return cell.data ? (
+        <RegularDelayedBall
+          onClick={onClick}
+          color={cell.color}
+          delay={cell.data.delay}
+        />
+      ) : (
+        <RegularBall onClick={onClick} color={cell.color} />
+      );
     case "small":
       return <SmallBall color={cell.color} />;
     case "empty":
       return cell.data ? (
-        <MovingBall index={cell.data.index} color={cell.data.color} />
+        <MovingBall
+          duration={cell.data.duration}
+          delay={cell.data.delay}
+          color={cell.data.color}
+          onClick={onClick}
+          key={cell.data.id}
+        />
       ) : (
         <EmptyCell onClick={onClick} />
       );
@@ -111,6 +148,7 @@ const App: React.FC = () => {
   const size = 10;
   const randomBallsLength = 4;
   const successNumber = 4;
+  const defaultDelay = 200;
   const initialState = setInitialBoard(size, randomBallsLength);
 
   const [board, dispatch] = useReducer(reducer, initialState);
@@ -121,7 +159,8 @@ const App: React.FC = () => {
       randomBallsLength,
       size,
       board,
-      successNumber
+      successNumber,
+      defaultDelay
     );
     dispatch({ type: "updateBoard", board: nextBoard });
   };
@@ -147,11 +186,6 @@ const App: React.FC = () => {
             ))}
           </tr>
         ))}
-        {/* {Object.values(board).map((cell, index) => (
-          <Cell index={index} size={size} key={index}>
-            {<Ball onClick={handleMouseClick(index)} cell={cell} />}
-          </Cell>
-        ))} */}
       </BallBoard>
     </Container>
   );

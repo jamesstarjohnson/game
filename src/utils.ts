@@ -1,4 +1,4 @@
-import { range, sample } from "lodash";
+import { range, sample, uniqueId } from "lodash";
 import { filter, map } from "lodash/fp";
 import PF from "pathfinding";
 import {
@@ -10,7 +10,6 @@ import {
   Colors
 } from "./types";
 import { pipe, equals, findIndex } from "ramda";
-import { clearLine } from "readline";
 
 function getFromTwoD<T>(
   array: readonly T[][],
@@ -256,19 +255,46 @@ const convertToTwoDimensions = <T>(size: number) =>
     }, [])
   );
 
-const applyMovingBall = (board: BallKind[][], color: Colors) => (
-  indexes: { x: number; y: number }[]
-) =>
-  indexes.reduce((acc, next, index) => {
+const applyMovingBall = (
+  board: BallKind[][],
+  color: Colors,
+  defaultDelay: number
+) => (path: { x: number; y: number; id: string }[]): [BallKind[][], number] => [
+  path.reduce((acc, next, index) => {
     return setValueInTheBoard(
-      { kind: "empty", data: { color, index } },
+      {
+        kind: "empty",
+        data: {
+          color,
+          delay: defaultDelay * index,
+          duration: defaultDelay,
+          id: next.id
+        }
+      },
       next
     )(acc);
-  }, board);
+  }, board),
+  path.length
+];
+
+const applyFinalPosition = (
+  color: Colors,
+  toCoord: { x: number; y: number },
+  defaultDelay: number
+) => ([board, pathLength]: [BallKind[][], number]) =>
+  setValueInTheBoard(
+    {
+      kind: "regular",
+      color,
+      data: { delay: defaultDelay * (pathLength - 1) }
+    },
+    toCoord
+  )(board);
 
 export const updateBoardOnClick = (
   coord: { x: number; y: number },
-  size: number
+  size: number,
+  defaultDelay: number
 ) => (board: BallKind[][]): [BallKind[][], boolean] => {
   const action = findAction(coord, size, board);
   const nextBoard = updateBoardOnAction(board, action);
@@ -276,7 +302,8 @@ export const updateBoardOnClick = (
     ? [
         pipe(
           findPath(action.from.fromCoord, coord, size),
-          applyMovingBall(nextBoard, action.from.color)
+          applyMovingBall(nextBoard, action.from.color, defaultDelay),
+          applyFinalPosition(action.from.color, action.to.toCoord, defaultDelay)
         )(nextBoard),
         true
       ]
@@ -288,9 +315,14 @@ export const updateBoard = (
   randomBallsLength: number,
   size: number,
   board: BallKind[][],
-  successNumber: number
+  successNumber: number,
+  defaultDelay: number
 ) => {
-  const [nextBoard, afterMove] = updateBoardOnClick(coord, size)(board);
+  const [nextBoard, afterMove] = updateBoardOnClick(
+    coord,
+    size,
+    defaultDelay
+  )(board);
   // console.log(nextBoard);
   // if (afterMove) {
   //   return nextBoard;
@@ -469,7 +501,7 @@ const findPath = (
   const finder = new PF.AStarFinder();
   const path = finder
     .findPath(from.x, from.y, to.x, to.y, grid)
-    .map(([x, y]) => ({ x, y }));
+    .map(([x, y]) => ({ x, y, id: uniqueId("movingBall_") }));
   return path;
 };
 

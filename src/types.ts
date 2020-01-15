@@ -12,9 +12,12 @@ export type CellType = {
   color: keyof BallColors;
 };
 export type BallKind =
-  | { kind: "regular"; color: Colors }
+  | { kind: "regular"; color: Colors; data?: { delay: number } }
   | { kind: "small"; color: Colors }
   | { kind: "jumpy"; color: Colors }
-  | { kind: "empty"; data?: { color: Colors; index: number } };
+  | {
+      kind: "empty";
+      data?: { color: Colors; duration: number; delay: number; id: string };
+    };
 export type BoardRecord = Readonly<Record<string, BallKind>>;
 export type Board = Readonly<BallKind[]>;
