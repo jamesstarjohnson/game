@@ -4,7 +4,9 @@ import {
   updateBoard,
   setInitialBoard,
   convert2DTo1D,
-  updateBoardOnClick
+  updateBoardOnClick,
+  updateOnSuccessAgain
+  // -- //
 } from "./utils";
 import { ballColors, CellType, BallKind } from "./types";
 
@@ -27,8 +29,13 @@ const moving = keyframes`
 `;
 
 const delayedRegularBall = keyframes`
-0% { transform: scale(1) }
-100% {transform: scale(1)}
+  0% { transform: scale(1) }
+  100% {transform: scale(1)}
+`;
+
+const regularFromSmall = keyframes`
+  0% { width: 20%; height: 20% }
+  100% { width: 100%; height: 100% }
 `;
 
 const RegularBall = styled.div<CellType>`
@@ -47,6 +54,18 @@ const RegularDelayedBall = styled(RegularBall)<{ delay: number }>`
   animation-fill-mode: forwards;
 `;
 
+const SmallBall = styled(RegularBall)`
+  width: 20%;
+  height: 20%;
+`;
+
+const RegularFromSmall = styled(SmallBall)`
+  animation-name: ${regularFromSmall};
+  animation-duration: 500ms;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: forwards;
+`;
+
 const MovingBall = styled(RegularBall)<{
   duration: number;
   delay: number;
@@ -57,11 +76,6 @@ const MovingBall = styled(RegularBall)<{
   animation-delay: ${({ delay }) => `${delay}ms`};
   opacity: 0;
   animation-fill-mode: forwards;
-`;
-
-const SmallBall = styled(RegularBall)`
-  width: 20%;
-  height: 20%;
 `;
 
 const JumpyBall = styled(RegularBall)`
@@ -77,7 +91,8 @@ const Ball: React.FC<{
   cell: BallKind;
   onClick: () => void;
   onMoveComplete: () => void;
-}> = ({ cell, onClick, onMoveComplete }) => {
+  onRegularFromSmallComplete: (evnet: any) => void;
+}> = ({ cell, onClick, onMoveComplete, onRegularFromSmallComplete }) => {
   switch (cell.kind) {
     case "jumpy":
       return <JumpyBall onClick={onClick} color={cell.color} />;
@@ -94,6 +109,13 @@ const Ball: React.FC<{
       );
     case "small":
       return <SmallBall color={cell.color} />;
+    case "regularFromSmall":
+      return (
+        <RegularFromSmall
+          onAnimationEnd={onRegularFromSmallComplete}
+          color={cell.color}
+        />
+      );
     case "empty":
       return cell.data ? (
         <MovingBall
@@ -176,6 +198,22 @@ const App: React.FC = () => {
     dispatch({ type: "updateBoard", board: nextBoard });
   };
 
+  //this gets called randomBallsLength number of times
+  const handleAnimation = (f: () => void, randomBallsLength: number) => {
+    let count = 1;
+    return () => {
+      if (count === randomBallsLength) {
+        f();
+      }
+      count++;
+    };
+  };
+
+  const handleRegularFromSmallComplete = handleAnimation(() => {
+    const [nextBoard] = updateOnSuccessAgain(board, successNumber, size);
+    dispatch({ type: "updateBoard", board: nextBoard });
+  }, randomBallsLength);
+
   return (
     <Container>
       <BallBoard>
@@ -190,6 +228,9 @@ const App: React.FC = () => {
                         onClick={handleMouseClick({ x, y })}
                         cell={column}
                         onMoveComplete={handleMoveComplete}
+                        onRegularFromSmallComplete={
+                          handleRegularFromSmallComplete
+                        }
                       />
                     }
                   </Cell>

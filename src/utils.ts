@@ -126,7 +126,9 @@ export const setInitialBoard = (size: number, randomBallsLength: number) =>
   )(size * size);
 
 const turnSmallBallsIntoRegularOnes = (board: Board): Board =>
-  board.map(x => (x.kind === "small" ? { ...x, kind: "regular" } : x));
+  board.map(x =>
+    x.kind === "small" ? { color: x.color, kind: "regularFromSmall" } : x
+  );
 
 export const updateBoardAfterMove = (
   randomBallsLength: number,
@@ -338,22 +340,40 @@ export const updateBoard = (
     return updatedBoard;
   }
 
-  const [updatedBoardAgain] = pipe(
-    updateBoardAfterMove(randomBallsLength, size),
-    updateOnSuccess(successNumber, size)
+  const updatedBoardAgain = updateBoardAfterMove(
+    randomBallsLength,
+    size
   )(updatedBoard);
   return updatedBoardAgain;
 };
 
-const updateOnSuccess = (successNumber: number, size: number) => (
+const removeRegularFromSmall = (board: BallKind[][]): BallKind[][] =>
+  board.map(x =>
+    x.map(x1 =>
+      x1.kind === "regularFromSmall" ? { color: x1.color, kind: "regular" } : x1
+    )
+  );
+
+export const updateOnSuccessAgain = (
+  board: BallKind[][],
+  successNumber: number,
+  size: number
+) =>
+  pipe(
+    (board: BallKind[][]) => board,
+    removeRegularFromSmall,
+    updateOnSuccess(successNumber, size)
+  )(board);
+
+export const updateOnSuccess = (successNumber: number, size: number) => (
   board: BallKind[][]
 ): [BallKind[][], boolean] => {
-  const foundBalls = findHitBalls(size, successNumber, board);
-  if (foundBalls.length === 0) {
+  const hitBalls = findHitBalls(size, successNumber, board);
+  if (hitBalls.length === 0) {
     return [board, false];
   }
   return [
-    foundBalls.reduce(
+    hitBalls.reduce(
       (acc, next) => setValueInTheBoard({ kind: "empty" }, next)(acc),
       board
     ),
