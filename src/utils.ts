@@ -38,6 +38,24 @@ function purifyBoard(board: Board) {
   )(board);
 }
 
+const findPath = (
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  size: number
+) => (board: BallKind[][]) => {
+  const matrix = pipe(
+    (board: BallKind[][]) =>
+      board.flat().map(x => (x.kind === "empty" ? 0 : 1)),
+    convertToTwoDimensions(size)
+  )(board);
+  const grid = new PF.Grid(matrix);
+  const finder = new PF.AStarFinder();
+  const path = finder
+    .findPath(from.x, from.y, to.x, to.y, grid)
+    .map(([x, y]) => ({ x, y, id: uniqueId("movingBall_") }));
+  return path;
+};
+
 const findRandomIndexes = (randomIndexesLength: number, result: number[]) => (
   indexes: number[]
 ): number[] => {
@@ -205,8 +223,8 @@ const findAction = (
 const setValueInTheBoard = (
   value: BallKind,
   coord: { x: number; y: number }
-) => (board: BallKind[][]) => {
-  return board.reduce<BallKind[][]>((acc, next, index) => {
+) => (board: BallKind[][]) =>
+  board.reduce<BallKind[][]>((acc, next, index) => {
     let newNext = next;
     if (coord.y === index) {
       newNext = [...next];
@@ -215,65 +233,56 @@ const setValueInTheBoard = (
     acc.push(newNext);
     return acc;
   }, []);
-};
 
-const updateBoardOnAction = (
-  board: BallKind[][],
-  action: Action
-): BallKind[][] => {
-  switch (action.type) {
-    case "sameJumpyBall":
-    case "firstRegularBall":
-      return setValueInTheBoard(action.cell, action.toCoord)(board);
-    case "subsequentRegularBall":
-      return pipe(
-        setValueInTheBoard(action.from.cell, action.from.fromCoord),
-        setValueInTheBoard(action.to.cell, action.to.toCoord)
-      )(board);
-    case "move":
-      return pipe(
-        setValueInTheBoard(
-          { kind: "regular", color: action.from.color },
-          action.from.fromCoord
-        )
-      )(board);
+// const updateBoardBeforeMove = (
+//   board: BallKind[][],
+//   action: Action
+// ): BallKind[][] => {
+//   switch (action.type) {
+//     case "sameJumpyBall":
+//     case "firstRegularBall":
+//       return setValueInTheBoard(action.cell, action.toCoord)(board);
+//     case "subsequentRegularBall":
+//       return pipe(
+//         setValueInTheBoard(action.from.cell, action.from.fromCoord),
+//         setValueInTheBoard(action.to.cell, action.to.toCoord)
+//       )(board);
+//     default:
+//       return board;
+//   }
+// };
 
-    default:
-      return board;
-  }
-};
-
-const convertToTwoDimensions = <T>(size: number) =>
-  pipe((board: T[]) =>
-    board.reduce<T[][]>((acc, next, index) => {
-      if (index % size === 0) {
-        acc.push([next]);
-        return acc;
-      }
-      acc[acc.length - 1].push(next);
+const convertToTwoDimensions = <T>(size: number) => (board: T[]) =>
+  board.reduce<T[][]>((acc, next, index) => {
+    if (index % size === 0) {
+      acc.push([next]);
       return acc;
-    }, [])
-  );
+    }
+    acc[acc.length - 1].push(next);
+    return acc;
+  }, []);
 
 const applyMovingBall = (
   board: BallKind[][],
   color: Colors,
   defaultDelay: number
 ) => (path: { x: number; y: number; id: string }[]): [BallKind[][], number] => [
-  path.reduce((acc, next, index) => {
-    return setValueInTheBoard(
-      {
-        kind: "empty",
-        data: {
-          color,
-          delay: defaultDelay * index,
-          duration: defaultDelay,
-          id: next.id
-        }
-      },
-      next
-    )(acc);
-  }, board),
+  path.reduce(
+    (acc, next, index) =>
+      setValueInTheBoard(
+        {
+          kind: "empty",
+          data: {
+            color,
+            delay: defaultDelay * index,
+            duration: defaultDelay,
+            id: next.id
+          }
+        },
+        next
+      )(acc),
+    board
+  ),
   path.length
 ];
 
@@ -294,45 +303,37 @@ const applyFinalPosition = (
 export const updateBoardOnClick = (
   coord: { x: number; y: number },
   size: number,
-  defaultDelay: number
-) => (board: BallKind[][]): [BallKind[][], boolean] => {
+  defaultDelay: number,
+  board: BallKind[][]
+) => {
   const action = findAction(coord, size, board);
-  const nextBoard = updateBoardOnAction(board, action);
-  return action.type === "move"
-    ? [
-        pipe(
-          findPath(action.from.fromCoord, coord, size),
-          applyMovingBall(nextBoard, action.from.color, defaultDelay),
-          applyFinalPosition(action.from.color, action.to.toCoord, defaultDelay)
-        )(nextBoard),
-        true
-      ]
-    : [nextBoard, false];
+  switch (action.type) {
+    case "sameJumpyBall":
+    case "firstRegularBall":
+      return setValueInTheBoard(action.cell, action.toCoord)(board);
+    case "subsequentRegularBall":
+      return pipe(
+        setValueInTheBoard(action.from.cell, action.from.fromCoord),
+        setValueInTheBoard(action.to.cell, action.to.toCoord)
+      )(board);
+    case "move":
+      return pipe(
+        findPath(action.from.fromCoord, coord, size),
+        applyMovingBall(board, action.from.color, defaultDelay),
+        applyFinalPosition(action.from.color, action.to.toCoord, defaultDelay)
+      )(board);
+    default:
+      return board;
+  }
 };
 
 export const updateBoard = (
-  coord: { x: number; y: number },
   randomBallsLength: number,
   size: number,
   board: BallKind[][],
-  successNumber: number,
-  defaultDelay: number
+  successNumber: number
 ) => {
-  const [nextBoard, afterMove] = updateBoardOnClick(
-    coord,
-    size,
-    defaultDelay
-  )(board);
-  // console.log(nextBoard);
-  // if (afterMove) {
-  //   return nextBoard;
-  // }
-  return nextBoard;
-
-  const [updatedBoard, isSuccess] = updateOnSuccess(
-    successNumber,
-    size
-  )(nextBoard);
+  const [updatedBoard, isSuccess] = updateOnSuccess(successNumber, size)(board);
   if (isSuccess) {
     return updatedBoard;
   }
@@ -486,24 +487,6 @@ const isEqual = (a: { x: number; y: number }) => (a1: {
 //     )
 //   );
 // }
-
-const findPath = (
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  size: number
-) => (board: BallKind[][]) => {
-  const matrix = pipe(
-    (board: BallKind[][]) =>
-      board.flat().map(x => (x.kind === "empty" ? 0 : 1)),
-    convertToTwoDimensions(size)
-  )(board);
-  const grid = new PF.Grid(matrix);
-  const finder = new PF.AStarFinder();
-  const path = finder
-    .findPath(from.x, from.y, to.x, to.y, grid)
-    .map(([x, y]) => ({ x, y, id: uniqueId("movingBall_") }));
-  return path;
-};
 
 // const boardOnNewMove = curry((id: number, board: Board): [Board, boolean] => {
 //   const jumpyCellId = board.findIndex(x => x.kind === "jumpy");

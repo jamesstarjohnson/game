@@ -1,6 +1,11 @@
 import React, { useReducer } from "react";
 import styled, { keyframes } from "styled-components";
-import { updateBoard, setInitialBoard, convert2DTo1D } from "./utils";
+import {
+  updateBoard,
+  setInitialBoard,
+  convert2DTo1D,
+  updateBoardOnClick
+} from "./utils";
 import { ballColors, CellType, BallKind } from "./types";
 
 const vibrate = keyframes`
@@ -68,10 +73,11 @@ const EmptyCell = styled.div`
   height: 100%;
 `;
 
-const Ball: React.FC<{ cell: BallKind; onClick: () => void }> = ({
-  cell,
-  onClick
-}) => {
+const Ball: React.FC<{
+  cell: BallKind;
+  onClick: () => void;
+  onMoveComplete: () => void;
+}> = ({ cell, onClick, onMoveComplete }) => {
   switch (cell.kind) {
     case "jumpy":
       return <JumpyBall onClick={onClick} color={cell.color} />;
@@ -81,6 +87,7 @@ const Ball: React.FC<{ cell: BallKind; onClick: () => void }> = ({
           onClick={onClick}
           color={cell.color}
           delay={cell.data.delay}
+          onAnimationEnd={onMoveComplete}
         />
       ) : (
         <RegularBall onClick={onClick} color={cell.color} />
@@ -154,13 +161,17 @@ const App: React.FC = () => {
   const [board, dispatch] = useReducer(reducer, initialState);
   const handleMouseClick = (coord: { x: number; y: number }) => () => {
     console.log("t", coord);
+    const nextBoard = updateBoardOnClick(coord, size, defaultDelay, board);
+    dispatch({ type: "updateBoard", board: nextBoard });
+  };
+
+  const handleMoveComplete = () => {
+    console.log("complete");
     const nextBoard = updateBoard(
-      coord,
       randomBallsLength,
       size,
       board,
-      successNumber,
-      defaultDelay
+      successNumber
     );
     dispatch({ type: "updateBoard", board: nextBoard });
   };
@@ -178,6 +189,7 @@ const App: React.FC = () => {
                       <Ball
                         onClick={handleMouseClick({ x, y })}
                         cell={column}
+                        onMoveComplete={handleMoveComplete}
                       />
                     }
                   </Cell>
