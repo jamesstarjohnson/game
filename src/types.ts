@@ -19,6 +19,7 @@ export type BallKind =
       kind: "empty";
       data?: { color: Colors; duration: number; delay: number; id: string };
     }
-  | { kind: "regularFromSmall"; color: Colors };
+  | { kind: "regularFromSmall"; color: Colors }
+  | { kind: "hit"; color: Colors };
 export type BoardRecord = Readonly<Record<string, BallKind>>;
 export type Board = Readonly<BallKind[]>;

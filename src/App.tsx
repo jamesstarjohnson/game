@@ -5,6 +5,7 @@ import {
   setInitialBoard,
   convert2DTo1D,
   updateBoardOnClick,
+  removeHitBalls,
   updateOnSuccessAgain
   // -- //
 } from "./utils";
@@ -38,6 +39,11 @@ const regularFromSmall = keyframes`
   100% { width: 100%; height: 100% }
 `;
 
+const hitBall = keyframes`
+  0% { transform: scale(1); opacity: 1; }
+  100% {transform: scale(5); opacity: 0; }
+`;
+
 const RegularBall = styled.div<CellType>`
   background-color: ${({ color }) => ballColors[color]};
   width: 100%;
@@ -51,6 +57,13 @@ const RegularDelayedBall = styled(RegularBall)<{ delay: number }>`
   animation-timing-function: ease-in-out;
   animation-delay: ${({ delay }) => `${delay}ms`};
   transform: scale(0);
+  animation-fill-mode: forwards;
+`;
+
+const HitBall = styled(RegularBall)`
+  animation-name: ${hitBall};
+  animation-duration: 500ms;
+  animation-timing-function: linear;
   animation-fill-mode: forwards;
 `;
 
@@ -91,8 +104,17 @@ const Ball: React.FC<{
   cell: BallKind;
   onClick: () => void;
   onMoveComplete: () => void;
-  onRegularFromSmallComplete: (evnet: any) => void;
-}> = ({ cell, onClick, onMoveComplete, onRegularFromSmallComplete }) => {
+  onRegularFromSmallComplete: (
+    evnet: React.AnimationEvent<HTMLDivElement>
+  ) => void;
+  onHitBlowComplete: (event: React.AnimationEvent<HTMLDivElement>) => void;
+}> = ({
+  cell,
+  onClick,
+  onMoveComplete,
+  onRegularFromSmallComplete,
+  onHitBlowComplete
+}) => {
   switch (cell.kind) {
     case "jumpy":
       return <JumpyBall onClick={onClick} color={cell.color} />;
@@ -128,6 +150,8 @@ const Ball: React.FC<{
       ) : (
         <EmptyCell onClick={onClick} />
       );
+    case "hit":
+      return <HitBall color={cell.color} onAnimationEnd={onHitBlowComplete} />;
   }
 };
 
@@ -199,10 +223,10 @@ const App: React.FC = () => {
   };
 
   //this gets called randomBallsLength number of times
-  const handleAnimation = (f: () => void, randomBallsLength: number) => {
+  const handleAnimation = (f: () => void, numberOfFires: number) => {
     let count = 1;
     return () => {
-      if (count === randomBallsLength) {
+      if (count === numberOfFires) {
         f();
       }
       count++;
@@ -212,6 +236,10 @@ const App: React.FC = () => {
   const handleRegularFromSmallComplete = handleAnimation(() => {
     const [nextBoard] = updateOnSuccessAgain(board, successNumber, size);
     dispatch({ type: "updateBoard", board: nextBoard });
+  }, randomBallsLength);
+
+  const handleHitBlowComplete = handleAnimation(() => {
+    dispatch({ type: "updateBoard", board: removeHitBalls(board) });
   }, randomBallsLength);
 
   return (
@@ -231,6 +259,7 @@ const App: React.FC = () => {
                         onRegularFromSmallComplete={
                           handleRegularFromSmallComplete
                         }
+                        onHitBlowComplete={handleHitBlowComplete}
                       />
                     }
                   </Cell>

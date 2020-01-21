@@ -10,6 +10,7 @@ import {
   Colors
 } from "./types";
 import { pipe, equals, findIndex } from "ramda";
+import colors from "./App.test";
 
 function getFromTwoD<T>(
   array: readonly T[][],
@@ -365,6 +366,23 @@ export const updateOnSuccessAgain = (
     updateOnSuccess(successNumber, size)
   )(board);
 
+export const removeHitBalls = (board: BallKind[][]): BallKind[][] =>
+  board.map(row =>
+    row.map(column => (column.kind === "hit" ? { kind: "empty" } : column))
+  );
+
+const setMultitpleValuesInTheBoard = (
+  coords: { x: number; y: number }[],
+  mapper: (cell: BallKind) => BallKind
+) => (board: BallKind[][]) => {
+  const mapCoords = new Map(coords.map(e => [createBoardPointString(e), e]));
+  return board.map((row, y) =>
+    row.map((column, x) =>
+      mapCoords.has(createBoardPointString({ x, y })) ? mapper(column) : column
+    )
+  );
+};
+
 export const updateOnSuccess = (successNumber: number, size: number) => (
   board: BallKind[][]
 ): [BallKind[][], boolean] => {
@@ -372,13 +390,13 @@ export const updateOnSuccess = (successNumber: number, size: number) => (
   if (hitBalls.length === 0) {
     return [board, false];
   }
-  return [
-    hitBalls.reduce(
-      (acc, next) => setValueInTheBoard({ kind: "empty" }, next)(acc),
-      board
-    ),
-    true
-  ];
+  const nextBoard = setMultitpleValuesInTheBoard(hitBalls, (cell: BallKind) => {
+    if (cell.kind === "regular") {
+      return { color: cell.color, kind: "hit" };
+    }
+    return cell;
+  })(board);
+  return [nextBoard, true];
 };
 
 const findNextIndex = (
