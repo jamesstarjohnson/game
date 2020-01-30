@@ -3,11 +3,9 @@ import styled, { keyframes } from "styled-components";
 import {
   updateBoard,
   setInitialBoard,
-  convert2DTo1D,
   updateBoardOnClick,
   removeHitBalls,
   updateOnSuccessAgain
-  // -- //
 } from "./utils";
 import { ballColors, CellType, BallKind } from "./types";
 
@@ -51,7 +49,7 @@ const RegularBall = styled.div<CellType>`
   border-radius: 50%;
 `;
 
-const RegularDelayedBall = styled(RegularBall)<{ delay: number }>`
+const RegularDelayedBall = styled(RegularBall) <{ delay: number }>`
   animation-name: ${delayedRegularBall};
   animation-duration: 1ms;
   animation-timing-function: ease-in-out;
@@ -79,7 +77,7 @@ const RegularFromSmall = styled(SmallBall)`
   animation-fill-mode: forwards;
 `;
 
-const MovingBall = styled(RegularBall)<{
+const MovingBall = styled(RegularBall) <{
   duration: number;
   delay: number;
 }>`
@@ -100,6 +98,15 @@ const EmptyCell = styled.div`
   height: 100%;
 `;
 
+const Board = styled.div<{ size: number }>`
+  display: grid;
+  grid-template-columns: ${({ size }) => `repeat(${size}, auto)`};
+  grid-auto-rows: auto;
+  grid-gap: 1px;
+  height: 100vmin;
+  width: 100vmin;
+`;
+
 const Ball: React.FC<{
   cell: BallKind;
   onClick: () => void;
@@ -115,45 +122,45 @@ const Ball: React.FC<{
   onRegularFromSmallComplete,
   onHitBlowComplete
 }) => {
-  switch (cell.kind) {
-    case "jumpy":
-      return <JumpyBall onClick={onClick} color={cell.color} />;
-    case "regular":
-      return cell.data ? (
-        <RegularDelayedBall
-          onClick={onClick}
-          color={cell.color}
-          delay={cell.data.delay}
-          onAnimationEnd={onMoveComplete}
-        />
-      ) : (
-        <RegularBall onClick={onClick} color={cell.color} />
-      );
-    case "small":
-      return <SmallBall color={cell.color} />;
-    case "regularFromSmall":
-      return (
-        <RegularFromSmall
-          onAnimationEnd={onRegularFromSmallComplete}
-          color={cell.color}
-        />
-      );
-    case "empty":
-      return cell.data ? (
-        <MovingBall
-          duration={cell.data.duration}
-          delay={cell.data.delay}
-          color={cell.data.color}
-          onClick={onClick}
-          key={cell.data.id}
-        />
-      ) : (
-        <EmptyCell onClick={onClick} />
-      );
-    case "hit":
-      return <HitBall color={cell.color} onAnimationEnd={onHitBlowComplete} />;
-  }
-};
+    switch (cell.kind) {
+      case "jumpy":
+        return <JumpyBall onClick={onClick} color={cell.color} />;
+      case "regular":
+        return cell.data ? (
+          <RegularDelayedBall
+            onClick={onClick}
+            color={cell.color}
+            delay={cell.data.delay}
+            onAnimationEnd={onMoveComplete}
+          />
+        ) : (
+            <RegularBall onClick={onClick} color={cell.color} />
+          );
+      case "small":
+        return <SmallBall color={cell.color} />;
+      case "regularFromSmall":
+        return (
+          <RegularFromSmall
+            onAnimationEnd={onRegularFromSmallComplete}
+            color={cell.color}
+          />
+        );
+      case "empty":
+        return cell.data ? (
+          <MovingBall
+            duration={cell.data.duration}
+            delay={cell.data.delay}
+            color={cell.data.color}
+            onClick={onClick}
+            key={cell.data.id}
+          />
+        ) : (
+            <EmptyCell onClick={onClick} />
+          );
+      case "hit":
+        return <HitBall color={cell.color} onAnimationEnd={onHitBlowComplete} />;
+    }
+  };
 
 const Container = styled.div`
   width: 100vw;
@@ -164,21 +171,10 @@ const Container = styled.div`
 `;
 
 const Cell = styled.div`
-  width: calc(10vmin - 2px);
-  height: calc(10vmin - 2px);
   display: flex;
   align-items: center;
   justify-content: center;
-`;
-
-const BallBoard = styled.table`
-  width: 100vmin;
-  heightl: 100vmin;
-  border-collapse: collapse;
-`;
-
-const Td = styled.td`
-  border: 1px solid #dddddd;
+  border: 1px solid silver;
 `;
 
 type State = BallKind[][];
@@ -244,31 +240,20 @@ const App: React.FC = () => {
 
   return (
     <Container>
-      <BallBoard>
-        {board.map((row, y) => (
-          <tr>
-            {row.map((column, x) => (
-              <Td>
-                {
-                  <Cell key={convert2DTo1D(size, { x, y })}>
-                    {
-                      <Ball
-                        onClick={handleMouseClick({ x, y })}
-                        cell={column}
-                        onMoveComplete={handleMoveComplete}
-                        onRegularFromSmallComplete={
-                          handleRegularFromSmallComplete
-                        }
-                        onHitBlowComplete={handleHitBlowComplete}
-                      />
-                    }
-                  </Cell>
-                }
-              </Td>
-            ))}
-          </tr>
-        ))}
-      </BallBoard>
+      <Board size={size}>
+        {board.map((row, y) =>
+          row.map((column, x) => <Cell key={`${y},${x}`}>{<Ball
+            onClick={handleMouseClick({ x, y })}
+            cell={column}
+            onMoveComplete={handleMoveComplete}
+            onRegularFromSmallComplete={
+              handleRegularFromSmallComplete
+            }
+            onHitBlowComplete={handleHitBlowComplete}
+          />
+          }</Cell>)
+        )}
+      </Board>
     </Container>
   );
 };

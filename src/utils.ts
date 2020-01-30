@@ -9,8 +9,7 @@ import {
   BoardRecord,
   Colors
 } from "./types";
-import { pipe, equals, findIndex } from "ramda";
-import colors from "./App.test";
+import { pipe, findIndex } from "ramda";
 
 function getFromTwoD<T>(
   array: readonly T[][],
@@ -27,10 +26,6 @@ function getFromOneD<T>(array: readonly T[], coord: number): T | undefined {
   return array[coord];
 }
 
-function canYouMoveHere() {
-  return true;
-}
-
 function purifyBoard(board: Board) {
   return pipe(
     (board: Board) =>
@@ -42,13 +37,9 @@ function purifyBoard(board: Board) {
 const findPath = (
   from: { x: number; y: number },
   to: { x: number; y: number },
-  size: number
-) => (board: BallKind[][]) => {
-  const matrix = pipe(
-    (board: BallKind[][]) =>
-      board.flat().map(x => (x.kind === "empty" ? 0 : 1)),
-    convertToTwoDimensions(size)
-  )(board);
+) => (board: BallKind[][]): { x: number, y: number, id: string }[] => {
+  const matrix =
+    board.map(row => row.map(column => (column.kind === "empty" ? 0 : 1)))
   const grid = new PF.Grid(matrix);
   const finder = new PF.AStarFinder();
   const path = finder
@@ -94,21 +85,15 @@ const updateBoardWithRandomBalls = (
   colors: string[],
   cellType: "small" | "regular"
 ) => (board: Board) =>
-  pipe(
-    purifyBoard,
-    findRandomIndexes(randomBallsLength, []),
-    map((index: number) => ({
-      index,
-      color: sample(colors) as Colors
-    })),
-    applyRandomBallsOnBoard(cellType, board)
-  )(board);
-
-const byIndex = (values: Board) =>
-  values.reduce<Record<string, BallKind>>((acc, next, index) => {
-    acc[index] = next;
-    return acc;
-  }, {});
+    pipe(
+      purifyBoard,
+      findRandomIndexes(randomBallsLength, []),
+      map((index: number) => ({
+        index,
+        color: sample(colors) as Colors
+      })),
+      applyRandomBallsOnBoard(cellType, board)
+    )(board);
 
 export const setInitialBoard = (size: number, randomBallsLength: number) =>
   pipe(
@@ -135,34 +120,34 @@ export const updateBoardAfterMove = (
   randomBallsLength: number,
   size: number
 ) => (board: BallKind[][]) =>
-  pipe(
-    (board: BallKind[][]) => board.flat(),
-    turnSmallBallsIntoRegularOnes,
-    updateBoardWithRandomBalls(
-      randomBallsLength,
-      Object.keys(ballColors),
-      "small"
-    ),
-    convertToTwoDimensions(size)
-  )(board);
+    pipe(
+      (board: BallKind[][]) => board.flat(),
+      turnSmallBallsIntoRegularOnes,
+      updateBoardWithRandomBalls(
+        randomBallsLength,
+        Object.keys(ballColors),
+        "small"
+      ),
+      convertToTwoDimensions(size)
+    )(board);
 
 type Action =
   | { type: "sameJumpyBall"; toCoord: { x: number; y: number }; cell: BallKind }
   | {
-      type: "firstRegularBall";
-      toCoord: { x: number; y: number };
-      cell: BallKind;
-    }
+    type: "firstRegularBall";
+    toCoord: { x: number; y: number };
+    cell: BallKind;
+  }
   | {
-      type: "subsequentRegularBall";
-      to: { toCoord: { x: number; y: number }; cell: BallKind };
-      from: { fromCoord: { x: number; y: number }; cell: BallKind };
-    }
+    type: "subsequentRegularBall";
+    to: { toCoord: { x: number; y: number }; cell: BallKind };
+    from: { fromCoord: { x: number; y: number }; cell: BallKind };
+  }
   | {
-      type: "move";
-      to: { toCoord: { x: number; y: number }; cell: BallKind };
-      from: { fromCoord: { x: number; y: number }; color: Colors };
-    }
+    type: "move";
+    to: { toCoord: { x: number; y: number }; cell: BallKind };
+    from: { fromCoord: { x: number; y: number }; color: Colors };
+  }
   | { type: "updateBoardAfterClick"; board: BoardRecord }
   | { type: "default" };
 
@@ -170,11 +155,6 @@ const convert1DTo2D = (size: number, coord1D: number) => ({
   y: Math.floor(coord1D / size),
   x: coord1D % size
 });
-
-export const convert2DTo1D = (
-  size: number,
-  { x, y }: { x: number; y: number }
-) => y * size + x;
 
 const findJumpyBallCoord = (board: BallKind[][], size: number) =>
   pipe(
@@ -227,33 +207,15 @@ const setValueInTheBoard = (
   value: BallKind,
   coord: { x: number; y: number }
 ) => (board: BallKind[][]) =>
-  board.reduce<BallKind[][]>((acc, next, index) => {
-    let newNext = next;
-    if (coord.y === index) {
-      newNext = [...next];
-      newNext[coord.x] = value;
-    }
-    acc.push(newNext);
-    return acc;
-  }, []);
-
-// const updateBoardBeforeMove = (
-//   board: BallKind[][],
-//   action: Action
-// ): BallKind[][] => {
-//   switch (action.type) {
-//     case "sameJumpyBall":
-//     case "firstRegularBall":
-//       return setValueInTheBoard(action.cell, action.toCoord)(board);
-//     case "subsequentRegularBall":
-//       return pipe(
-//         setValueInTheBoard(action.from.cell, action.from.fromCoord),
-//         setValueInTheBoard(action.to.cell, action.to.toCoord)
-//       )(board);
-//     default:
-//       return board;
-//   }
-// };
+    board.reduce<BallKind[][]>((acc, next, index) => {
+      let newNext = next;
+      if (coord.y === index) {
+        newNext = [...next];
+        newNext[coord.x] = value;
+      }
+      acc.push(newNext);
+      return acc;
+    }, []);
 
 const convertToTwoDimensions = <T>(size: number) => (board: T[]) =>
   board.reduce<T[][]>((acc, next, index) => {
@@ -294,14 +256,14 @@ const applyFinalPosition = (
   toCoord: { x: number; y: number },
   defaultDelay: number
 ) => ([board, pathLength]: [BallKind[][], number]) =>
-  setValueInTheBoard(
-    {
-      kind: "regular",
-      color,
-      data: { delay: defaultDelay * (pathLength - 1) }
-    },
-    toCoord
-  )(board);
+    setValueInTheBoard(
+      {
+        kind: "regular",
+        color,
+        data: { delay: defaultDelay * (pathLength - 1) }
+      },
+      toCoord
+    )(board);
 
 export const updateBoardOnClick = (
   coord: { x: number; y: number },
@@ -320,11 +282,11 @@ export const updateBoardOnClick = (
         setValueInTheBoard(action.to.cell, action.to.toCoord)
       )(board);
     case "move":
-      return pipe(
-        findPath(action.from.fromCoord, coord, size),
+      const path = findPath(action.from.fromCoord, coord)(board)
+      return path.length > 0 ? pipe(
         applyMovingBall(board, action.from.color, defaultDelay),
         applyFinalPosition(action.from.color, action.to.toCoord, defaultDelay)
-      )(board);
+      )(path) : setValueInTheBoard({ color: action.from.color, kind: 'regular' }, action.from.fromCoord)(board)
     default:
       return board;
   }
@@ -475,92 +437,6 @@ const findHitBalls = (
     .flatMap(x => x)
     .map(x => x.coord);
 
-function createBoardPoint({ x, y }: { x: number; y: number }) {
-  return { x, y };
-}
 function createBoardPointString({ x, y }: { x: number; y: number }) {
   return `${x},${y}`;
 }
-const isEqual = (a: { x: number; y: number }) => (a1: {
-  x: number;
-  y: number;
-}) => equals(createBoardPointString(a), createBoardPointString(a1));
-
-// function findPath(
-//   board: BallKind[][],
-//   indexes: Map<string, { x: number; y: number }>,
-//   currentIndex: { x: number; y: number },
-//   target: { x: number; y: number }
-// ): any[] {
-//   const a = [
-//     createBoardPoint({ x: currentIndex.x + 1, y: currentIndex.y }),
-//     createBoardPoint({ x: currentIndex.x - 1, y: currentIndex.y }),
-//     createBoardPoint({ x: currentIndex.x, y: currentIndex.y + 1 }),
-//     createBoardPoint({ x: currentIndex.x, y: currentIndex.y - 1 })
-//   ];
-//   const nextIndexes = a.filter(({ x, y }) => {
-//     const res =
-//       getFromTwoD(board, { x, y })?.kind === "empty" &&
-//       !indexes.has(createBoardPointString({ x, y }));
-//     return res;
-//   });
-//   if (a.find(isEqual(target))) {
-//     indexes.set(createBoardPointString(target), target);
-//     return Array.from(indexes.values());
-//   }
-//   if (nextIndexes.length === 0) {
-//     return [];
-//   }
-
-//   // const nextAllTheIndexes = nextIndexes.reduce(
-//   //   (acc, { x, y }) => acc.add(createBoardPointString({ x, y })),
-//   //   allTheIndexes
-//   // );
-//   return nextIndexes.map(x =>
-//     findPath(
-//       board,
-//       new Map(indexes.set(createBoardPointString(x), x)),
-//       x,
-//       target
-//     )
-//   );
-// }
-
-// const boardOnNewMove = curry((id: number, board: Board): [Board, boolean] => {
-//   const jumpyCellId = board.findIndex(x => x.kind === "jumpy");
-//   const firstSpot = board[jumpyCellId];
-//   const targetSpot = board[id];
-//   let IsSecondClick = false;
-//   const newBoard: Board = board.map((x, index) => {
-//     if (index === id && x.kind === "regular") {
-//       return { color: x.color, kind: "jumpy" };
-//     }
-//     if (index === id && x.kind === "jumpy") {
-//       return { color: x.color, kind: "regular" };
-//     }
-//     if (targetSpot.kind === "regular" && x.kind === "jumpy") {
-//       return { color: x.color, kind: "regular" };
-//     }
-//     if (
-//       index === id &&
-//       (x.kind === "empty" || x.kind === "small") &&
-//       !!firstSpot &&
-//       firstSpot.kind === "jumpy" &&
-//       canYouMoveHere()
-//     ) {
-//       // TODO remove side-effect
-//       IsSecondClick = true;
-//       return { kind: "regular", color: firstSpot.color };
-//     }
-//     if (
-//       jumpyCellId === index &&
-//       x.kind === "jumpy" &&
-//       (targetSpot.kind === "empty" || targetSpot.kind === "small") &&
-//       canYouMoveHere()
-//     ) {
-//       return { kind: "empty" };
-//     }
-//     return x;
-//   });
-//   return [newBoard, IsSecondClick];
-// });
