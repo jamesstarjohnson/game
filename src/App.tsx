@@ -5,7 +5,7 @@ import {
   setInitialBoard,
   updateBoardOnClick,
   removeHitBalls,
-  updateOnSuccessAgain
+  updateOnSuccessAgain,
 } from "./utils";
 import { ballColors, CellType, BallKind } from "./types";
 
@@ -49,7 +49,7 @@ const RegularBall = styled.div<CellType>`
   border-radius: 50%;
 `;
 
-const RegularDelayedBall = styled(RegularBall) <{ delay: number }>`
+const RegularDelayedBall = styled(RegularBall)<{ delay: number }>`
   animation-name: ${delayedRegularBall};
   animation-duration: 1ms;
   animation-timing-function: ease-in-out;
@@ -77,7 +77,7 @@ const RegularFromSmall = styled(SmallBall)`
   animation-fill-mode: forwards;
 `;
 
-const MovingBall = styled(RegularBall) <{
+const MovingBall = styled(RegularBall)<{
   duration: number;
   delay: number;
 }>`
@@ -120,47 +120,47 @@ const Ball: React.FC<{
   onClick,
   onMoveComplete,
   onRegularFromSmallComplete,
-  onHitBlowComplete
+  onHitBlowComplete,
 }) => {
-    switch (cell.kind) {
-      case "jumpy":
-        return <JumpyBall onClick={onClick} color={cell.color} />;
-      case "regular":
-        return cell.data ? (
-          <RegularDelayedBall
-            onClick={onClick}
-            color={cell.color}
-            delay={cell.data.delay}
-            onAnimationEnd={onMoveComplete}
-          />
-        ) : (
-            <RegularBall onClick={onClick} color={cell.color} />
-          );
-      case "small":
-        return <SmallBall color={cell.color} />;
-      case "regularFromSmall":
-        return (
-          <RegularFromSmall
-            onAnimationEnd={onRegularFromSmallComplete}
-            color={cell.color}
-          />
-        );
-      case "empty":
-        return cell.data ? (
-          <MovingBall
-            duration={cell.data.duration}
-            delay={cell.data.delay}
-            color={cell.data.color}
-            onClick={onClick}
-            key={cell.data.id}
-          />
-        ) : (
-            <EmptyCell onClick={onClick} />
-          );
-      case "hit":
-        return <HitBall color={cell.color} onAnimationEnd={onHitBlowComplete} />;
-    }
-  };
+  switch (cell.kind) {
+    case "jumpy":
+      return <JumpyBall onClick={onClick} color={cell.color} />;
+    case "regular":
+      return cell.data ? (
+        <RegularDelayedBall
+          onClick={onClick}
+          color={cell.color}
+          delay={cell.data.delay}
+          onAnimationEnd={onMoveComplete}
+        />
+      ) : (
+        <RegularBall onClick={onClick} color={cell.color} />
+      );
+    case "small":
+      return <SmallBall color={cell.color} />;
+    case "regularFromSmall":
+      return (
+        <RegularFromSmall
+          onAnimationEnd={onRegularFromSmallComplete}
+          color={cell.color}
+        />
+      );
+    case "empty":
+      return cell.data ? (
+        <MovingBall
+          duration={cell.data.duration}
+          delay={cell.data.delay}
+          color={cell.data.color}
+          onClick={onClick}
+          key={cell.data.id}
+        />
+      ) : (
+        <EmptyCell onClick={onClick} />
+      );
+    case "hit":
+      return <HitBall color={cell.color} onAnimationEnd={onHitBlowComplete} />;
+  }
+};
 
 const Container = styled.div`
   width: 100vw;
@@ -242,16 +242,19 @@ const App: React.FC = () => {
     <Container>
       <Board size={size}>
         {board.map((row, y) =>
-          row.map((column, x) => <Cell key={`${y},${x}`}>{<Ball
-            onClick={handleMouseClick({ x, y })}
-            cell={column}
-            onMoveComplete={handleMoveComplete}
-            onRegularFromSmallComplete={
-              handleRegularFromSmallComplete
-            }
-            onHitBlowComplete={handleHitBlowComplete}
-          />
-          }</Cell>)
+          row.map((column, x) => (
+            <Cell key={`${y},${x}`}>
+              {
+                <Ball
+                  onClick={handleMouseClick({ x, y })}
+                  cell={column}
+                  onMoveComplete={handleMoveComplete}
+                  onRegularFromSmallComplete={handleRegularFromSmallComplete}
+                  onHitBlowComplete={handleHitBlowComplete}
+                />
+              }
+            </Cell>
+          ))
         )}
       </Board>
     </Container>
